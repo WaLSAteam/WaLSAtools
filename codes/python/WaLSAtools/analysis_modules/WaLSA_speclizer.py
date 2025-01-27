@@ -129,17 +129,17 @@ def getpowerFFT(signal, time, **kwargs):
     nt = len(apocube)  # Length of the time series (1D)
 
     # Calculate the frequencies
-    frequencies = 1. / (cadence * 2) * np.arange(nt // 2 + 1) / (nt // 2)
+    frequencies = 1. / (cadence * 2) * np.arange(int(np.floor(nt / 2)) + 1) / (nt // 2)
     frequencies = frequencies[1:]
     powermap = np.zeros(len(frequencies))
     signal = apocube
     spec = np.fft.fft(signal)
-    power = 2 * np.abs(spec[1:len(frequencies) + 1]) ** 2
+    power = 2 * np.abs(spec[1:len(frequencies)]) ** 2
     powermap[:] = power / frequencies[0]
 
     if params['amplitude']:
         amplitudes = np.zeros((len(signal), len(frequencies)), dtype=np.complex_)
-        amplitudes = spec[1:len(frequencies) + 1]
+        amplitudes = spec[1:len(frequencies)]
     else: 
         amplitudes = None
 
@@ -161,7 +161,7 @@ def getpowerFFT(signal, time, **kwargs):
                 silent=True
             )
             perm_spec = np.fft.fft(perm_signal)
-            perm_power = 2 * np.abs(perm_spec[1:len(frequencies) + 1]) ** 2
+            perm_power = 2 * np.abs(perm_spec[1:len(frequencies)]) ** 2
             ps_perm[:, ip] = perm_power
 
         # Correct call to WaLSA_confidence
@@ -488,6 +488,7 @@ def welch_psd(signal, time, **kwargs):
     cadence = np.median(tdiff)
 
     # Calculate Welch PSD
+    # DC no option for detrend, it might be updated later on
     frequencies, psd = welch(signal, fs=1.0 / cadence, window=params['window'], nperseg=params['nperseg'], noverlap=params['noverlap'])
 
     # Calculate significance levels using permutation

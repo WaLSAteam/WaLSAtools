@@ -58,12 +58,13 @@ def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=N
         apocube = apocube * tukey_window  # Apodize the signal
     
     # Mean detrend (optional)
+    # DC this looks like removing the mean from the signal, why is there a fit?
     if meandetrend:
         avg_signal = np.mean(apocube)
-        time = np.arange(nt)
-        mean_fit_params, _ = curve_fit(linear, time, avg_signal)
-        mean_trend = linear(time, *mean_fit_params)
-        apocube -= mean_trend
+        # time = np.arange(nt)
+        # mean_fit_params, _ = curve_fit(linear, time, avg_signal)
+        # mean_trend = linear(time, *mean_fit_params)
+        apocube -= avg_signal#mean_trend
     
     # Pixel-based detrending (temporal detrend)
     if pxdetrend > 0:

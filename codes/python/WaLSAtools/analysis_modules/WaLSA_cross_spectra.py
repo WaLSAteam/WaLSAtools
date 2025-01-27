@@ -62,26 +62,26 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
         nperseg (int, optional): Length of each segment for analysis. Default: 256.
         noverlap (int, optional): Number of points to overlap between segments. Default: 128.
         window (str, optional): Type of window function used in the Welch method. Default: 'hann'.
-        siglevel (float, optional): Significance level for confidence intervals. Default: 0.95.
-        nperm (int, optional): Number of permutations for significance testing. Default: 1000.
         silent (bool, optional): If True, suppress print statements. Default: False.
         **kwargs: Additional parameters for the analysis method.
     
     Returns:
-        cospectrum, frequencies, phase_angle, coherence, signif_cross, signif_coh, d1_power, d2_power
+        frequencies, cospectrum, phase_angle, power_data1, power_data2, freq_coh, coh
     """
     # Define default values for the optional parameters
     defaults = {
         'data1': None,        # First data array
         'data1': None,        # Second data array
         'nperseg': 256,      # Number of points per segments to average
-        'apod': 0.1,       # Apodization function
-        'nodetrendapod': None,  # No detrending ot apodization applied
-        'pxdetrend': 2,  # Detrend parameter
-        'meandetrend': None,  # Detrend parameter
-        'polyfit': None,    # Detrend parameter
-        'meantemporal': None,  # Detrend parameter
-        'recon': None      # Detrend parameter
+        'noverlap': None,    # Number of points to overlap between segments
+        'nfft': None,        # Number of points to use in the FFT
+        'window': 'hann',  # Window type for Welch method
+        # 'nodetrendapod': None,  # No detrending or apodization applied
+        # 'pxdetrend': 2,  # Detrend parameter
+        # 'meandetrend': None,  # Detrend parameter
+        # 'polyfit': None,    # Detrend parameter
+        # 'meantemporal': None,  # Detrend parameter
+        # 'recon': None      # Detrend parameter
     }
 
     # Update defaults with any user-provided keyword arguments
@@ -89,6 +89,10 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
 
     data1 = params['data1']
     data2 = params['data2']
+    # DC in this way you can give params as input for the welch and csd function
+    del params['data1']
+    del params['data2']
+    
 
     dummy = signal+2
 
@@ -97,14 +101,14 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
     
     # Power spectrum for data1
     power_data1, frequencies, _ = WaLSA_speclizer(signal=data1, time=time, method='welch', 
-                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', True), **kwargs)
+                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', True), **params)
 
     # Power spectrum for data2
     power_data2, _, _ = WaLSA_speclizer(signal=data2, time=time, method='welch', 
-                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', False), **kwargs)
+                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', False), **params)
 
     # Calculate cross-spectrum
-    _, crosspower = csd(data1, data2, fs=1.0/cadence, window='hann', nperseg=500)
+    _, crosspower = csd(data1, data2, fs=1.0/cadence, **params)
 
     cospectrum = np.abs(crosspower)
     
@@ -112,7 +116,8 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
     phase_angle = np.angle(crosspower, deg=True)
 
     # Calculate coherence
-    freq_coh, coh = coherence(data1, data2, 1.0/cadence, nperseg=500)
+    freq_coh, coh = coherence(data1, data2, 1.0/cadence, window=params['window'], 
+                              nperseg=params['nperseg'], noverlap=params['noverlap'], nfft=params['nfft'])
     
     return frequencies, cospectrum, phase_angle, power_data1, power_data2, freq_coh, coh
 
