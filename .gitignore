@@ -27,6 +27,12 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Patches & diffs
+*.diff
+*.patch
+*.orig
+*.rej
+
 # Exclude all .jpg files by default
 *.jpg
 

@@ -134,9 +134,9 @@
     {% set scheme  = palette.scheme  | replace(" ", "-") | lower %}
     {% set primary = palette.primary | replace(" ", "-") | lower %}
     {% set accent  = palette.accent  | replace(" ", "-") | lower %}
-    <body dir="{{ direction }}" data-md-color-scheme="{{ scheme }}" data-md-color-primary="{{ primary }}" data-md-color-accent="{{ accent }}">
+    <body dir="{{ direction }}" data-md-color-scheme="{{ scheme }}" data-md-color-primary="{{ primary }}" data-md-color-accent="{{ accent }}" style="background-color: #000d1a !important;">
   {% else %}
-    <body dir="{{ direction }}">
+    <body dir="{{ direction }}" style="background-color: #000d1a !important;">
   {% endif %}
     {% set features = config.theme.features or [] %}
     {% if not config.theme.palette is mapping %}
@@ -166,7 +166,7 @@
           {% endif %}
         {% endif %}
       {% endblock %}
-      <main class="md-main" data-md-component="main">
+      <main class="md-main" data-md-component="main" style="background-color: #ffffff !important;">
         <div class="md-main__inner md-grid">
           
           <div class="md-content" data-md-component="content">
