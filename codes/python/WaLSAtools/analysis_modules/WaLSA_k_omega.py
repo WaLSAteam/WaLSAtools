@@ -15,7 +15,7 @@
 # limitations under the License.
 # 
 # Note: If you use WaLSAtools for research, please consider citing:
-# Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, 5, 21
+# Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, in press.
 # --------------------------------------------------------------------------------------------------------------
 # The following codes are baed on those originally written by Rob Rutten, David B. Jess, and Samuel D. T. Grant
 # --------------------------------------------------------------------------------------------------------------
@@ -102,13 +102,13 @@ def gaussian_function(sigma, width=None):
     return kernel
 
 
-def walsa_radial_distances(shape):
+def walsa_radial_distances(shape, FFT=False):
     """
     Compute the radial distance array for a given shape.
 
     Parameters:
         shape (tuple): Shape of the array, typically (ny, nx).
-
+        FFT (bool): If True, the array is generated for an FFT.
     Returns:
         numpy.ndarray: Array of radial distances.
     """
@@ -116,7 +116,10 @@ def walsa_radial_distances(shape):
         raise ValueError("Shape must be a tuple with two elements, e.g., (ny, nx).")
 
     y, x = np.indices(shape)
-    cy, cx = (np.array(shape) - 1) / 2
+    if FFT:
+        cy, cx = np.floor(np.array(shape) / 2)
+    else:
+        cy, cx = (np.array(shape) - 1) / 2
     return np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
 
 def avgstd(array):
@@ -172,7 +175,8 @@ def apod3dcube(cube, apod):
         apodrimt = nt * apod
         apodrimt = int(apodrimt)  # Ensure apodrimt is an integer
         apodt[:apodrimt] = (np.sin(np.pi / 2. * np.arange(apodrimt) / apodrimt)) ** 2
-        apodt = apodt * np.roll(np.flip(apodt), 1)  
+        # apodt = apodt * np.roll(np.flip(apodt), 1)  
+        apodt = apodt * np.flip(apodt)  
         # Apply symmetrical apodization
 
     # Temporal detrending (mean-image trend, not per pixel)
@@ -203,16 +207,19 @@ def apod3dcube(cube, apod):
         apodrimy = int(apodrimy)  # Ensure apodrimy is an integer
         apodx[:apodrimx] = (np.sin(np.pi / 2. * np.arange(int(apodrimx)) / apodrimx)) ** 2
         apody[:apodrimy] = (np.sin(np.pi / 2. * np.arange(int(apodrimy)) / apodrimy)) ** 2
-        apodx = apodx * np.roll(np.flip(apodx), 1)
-        apody = apody * np.roll(np.flip(apody), 1)
+        # apodx = apodx * np.roll(np.flip(apodx), 1)
+        # apody = apody * np.roll(np.flip(apody), 1)
+        apodx = apodx * np.flip(apodx)
+        apody = apody * np.flip(apody)
         apodxy = np.outer(apodx, apody)
     else:
         apodxy = np.outer(apodx, apody)
 
     # Spatial gradient removal and apodizing per image
-    # xf, yf = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
-    xf = np.ones((nx, ny), dtype=np.float32)
-    yf = np.copy(xf)
+    xf, yf = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
+    # DC: why was the line on top commented? if xf and yf are only ones the gradient is not a gradient
+    # xf = np.ones((nx, ny), dtype=np.float32)
+    # yf = np.copy(xf)
     for it in range(nt):
         img = apocube[it, :, :]
         # avg, _ = avgstd(img)
@@ -230,11 +237,11 @@ def apod3dcube(cube, apod):
         assert len(x_flat) == len(y_flat) == len(img_flat), "Flattened inputs must have the same length."
 
         # Call curve_fit with initial parameters
-        fitp, _ = curve_fit(gradient, (x_flat, y_flat), img_flat, p0=[1000.0, 0.0, 0.0])
+        fitxyp, _ = curve_fit(gradient, (x_flat, y_flat), img_flat, p0=[1000.0, 0.0, 0.0])
 
         # Apply the fitted parameters
-        fit = gradient((xf, yf), *fitp)
-        apocube[it, :, :] = (img - fit) * apodxy + avg
+        fitxy = gradient((xf, yf), *fitxyp)
+        apocube[it, :, :] = (img - fitxy) * apodxy + avg
 
     return apocube
 
@@ -245,20 +252,23 @@ def ko_dist(sx, sy, double=False):
     """
     # Create distance grids for x and y
     # (computing dx and dy using floating-point division)
-    dx = np.tile(np.arange(sx / 2 + 1) / (sx / 2), (int(sy / 2 + 1), 1)).T
-    dy = np.flip(np.tile(np.arange(sy / 2 + 1) / (sy / 2), (int(sx / 2 + 1), 1)), axis=0)
+    dx = np.tile(np.arange(np.floor(sx / 2)+1) / (sx / 2), (int(np.floor(sy / 2)+1), 1)).T
+    dy = np.flip(np.tile(np.arange(np.floor(sy / 2)+1) / (sy / 2), (int(np.floor(sx / 2)+1), 1)), axis=0)
     # Compute dxy
     dxy = np.sqrt(dx**2 + dy**2) * (min(sx, sy) / 2 + 1)
-    # Initialize afstanden
+
+    xhalf = int(np.ceil(sx / 2))
+    yhalf = int(np.ceil(sy / 2))
+
     afstanden = np.zeros((sx, sy), dtype=np.float64)
     # Assign dxy to the first quadrant (upper-left)
-    afstanden[:sx // 2 + 1, :sy // 2 + 1] = dxy
+    afstanden[:xhalf, :yhalf] = dxy[:xhalf, :yhalf]
     # Second quadrant (upper-right) - 90° clockwise
-    afstanden[sx // 2:, :sy // 2 + 1] = np.flip(np.roll(dxy[:-1, :], shift=-1, axis=1), axis=1)
+    afstanden[:xhalf, yhalf:] = np.flip(dxy[:xhalf,1:], axis=1)
     # Third quadrant (lower-left) - 270° clockwise
-    afstanden[:sx // 2 + 1, sy // 2:] = np.flip(np.roll(dxy[:, :-1], shift=-1, axis=0), axis=0)
+    afstanden[xhalf:, :yhalf] = np.flip(dxy[1:,:yhalf], axis=0)
     # Fourth quadrant (lower-right) - 180° rotation
-    afstanden[sx // 2:, sy // 2:] = np.flip(dxy[:-1, :-1], axis=(0, 1))     
+    afstanden[xhalf:, yhalf:] = np.flip(dxy[1:,1:], axis=(0, 1))
 
     # Convert to integers if 'double' is False
     if not double:
@@ -281,23 +291,24 @@ def averpower(cube):
     nt, nx, ny = cube.shape
 
     # Perform FFT in all three dimensions (first in time direction)
-    fftcube = np.fft.fft(np.fft.fft(np.fft.fft(cube, axis=0)[:nt//2+1, :, :], axis=1), axis=2)
+    fftcube = np.fft.fft(np.fft.fft(np.fft.fft(cube, axis=0)[:nt//2+1, :, :], axis=1), axis=2) / cube.size
 
     # Set up distances
     afstanden = ko_dist(nx, ny)  # Integer-rounded Pythagoras array
 
-    maxdist = min(nx, ny) // 2 + 1  # Largest quarter circle
-    
+    maxdist = int(np.floor(min(nx, ny) / 2) + 1)  # Largest quarter circle
+    nf = int(np.floor(nt / 2) + 1) # Number of frequencies
+
     # Initialize average power array
-    avpow = np.zeros((maxdist + 1, nt // 2 + 1), dtype=np.float64)
+    avpow = np.zeros((maxdist, nf), dtype=np.float64)
 
     # Compute average power over all k_h distances, building power(k_h, f)
-    for i in range(maxdist + 1):
+    for i in range(maxdist):
         where_indices = np.where(afstanden == i)
-        for j in range(nt // 2 + 1):
+        for j in range(nf):
             w1 = fftcube[j, :, :][where_indices]
             avpow[i, j] = np.sum(np.abs(w1) ** 2) / len(where_indices)
-
+    
     return avpow
 
 
@@ -306,7 +317,7 @@ def walsa_kopower_funct(datacube, **kwargs):
     Calculate k-omega diagram
     (Fourier power at temporal frequency f against horizontal spatial wavenumber k_h)
 
-    Origonally written in IDL by Rob Rutten (RR) assembly of Alfred de Wijn's routines (2010)
+    Originally written in IDL by Rob Rutten (RR) assembly of Alfred de Wijn's routines (2010)
     - Translated into Pythn by Shahin Jafarzadeh (2024)
 
     Parameters:
@@ -576,7 +587,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         is_N_even = (nx % 2 == 0)
         if is_N_even:
             spatial_frequencies_orig = (
-                np.concatenate([[0.0], temp_x, [nx / 2], -nx / 2 + temp_x]) / (nx * pixelsize)) * (2.0 * np.pi)
+                np.concatenate([[0.0], temp_x, [-nx / 2], -nx / 2 + temp_x]) / (nx * pixelsize)) * (2.0 * np.pi)
         else:
             spatial_frequencies_orig = (
                 np.concatenate([[0.0], temp_x, [-(nx / 2 + 1)] + temp_x]) / (nx * pixelsize)) * (2.0 * np.pi)
@@ -585,7 +596,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         is_N_even = (nt % 2 == 0)
         if is_N_even:
             temporal_frequencies_orig = (
-                np.concatenate([[0.0], temp_t, [nt / 2], -nt / 2 + temp_t])) / (nt * cadence)
+                np.concatenate([[0.0], temp_t, [-nt / 2], -nt / 2 + temp_t])) / (nt * cadence)
         else:
             temporal_frequencies_orig = (
                 np.concatenate([[0.0], temp_t, [-(nt / 2 + 1)] + temp_t])) / (nt * cadence)
@@ -594,26 +605,26 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         indices = np.where(spatial_frequencies_orig >= 0)[0]
         spatial_positive_frequencies = len(indices)
         if len(spatial_frequencies_orig) % 2 == 0:
-            spatial_frequencies = np.roll(spatial_frequencies_orig, spatial_positive_frequencies - 2)
+            spatial_frequencies = np.roll(spatial_frequencies_orig, spatial_positive_frequencies)
         else:
             spatial_frequencies = np.roll(spatial_frequencies_orig, spatial_positive_frequencies - 1)
 
         tindices = np.where(temporal_frequencies_orig >= 0)[0]
         temporal_positive_frequencies = len(tindices)
         if len(temporal_frequencies_orig) % 2 == 0:
-            temporal_frequencies = np.roll(temporal_frequencies_orig, temporal_positive_frequencies - 2)
+            temporal_frequencies = np.roll(temporal_frequencies_orig, temporal_positive_frequencies)
         else:
             temporal_frequencies = np.roll(temporal_frequencies_orig, temporal_positive_frequencies - 1)
 
         # Ensure the threedft aligns with the new frequency axes
-        if len(temporal_frequencies_orig) % 2 == 0:
-            for x in range(nx):
-                for y in range(ny):
-                    threedft[:, x, y] = np.roll(threedft[:, x, y], -1)
+        # if len(temporal_frequencies_orig) % 2 == 0:
+        #     for x in range(nx):
+        #         for y in range(ny):
+        #             threedft[:, x, y] = np.roll(threedft[:, x, y], -1)
 
-        if len(spatial_frequencies_orig) % 2 == 0:
-            for z in range(nt):
-                threedft[z, :, :] = np.roll(threedft[z, :, :], shift=(-1, -1), axis=(0, 1))
+        # if len(spatial_frequencies_orig) % 2 == 0:
+        #     for z in range(nt):
+        #         threedft[z, :, :] = np.roll(threedft[z, :, :], shift=(-1, -1), axis=(0, 1))
 
         # Convert frequencies and wavenumbers of interest into FFT datacube pixels
         pixel_k1_positive = np.argmin(np.abs(spatial_frequencies_orig - k1))
@@ -632,8 +643,8 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
             spatial_torus = np.zeros((torus_depth, nx, ny)) 
             for i in range(torus_depth // 2 + 1):
                 spatial_ring = np.logical_xor(
-                    (walsa_radial_distances((nx, ny)) <= (torus_center - i)),
-                    (walsa_radial_distances((nx, ny)) <= (torus_center + i + 1))
+                    (walsa_radial_distances((nx, ny), FFT=True) <= (torus_center - i)),
+                    (walsa_radial_distances((nx, ny), FFT=True) <= (torus_center + i + 1))
                 )
                 spatial_ring = spatial_ring.astype(int)  # Convert True -> 1 and False -> 0
                 spatial_ring[spatial_ring > 0] = 1.
@@ -648,8 +659,8 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
 
         if not params['spatial_torus'] and not params['no_spatial_filt']:
             spatial_ring_filter = (
-                (walsa_radial_distances((nx, ny)) <= (torus_center - int(torus_depth / 2))).astype(int) -
-                (walsa_radial_distances((nx, ny)) <= (torus_center + int(torus_depth / 2) + 1)).astype(int)
+                (walsa_radial_distances((nx, ny), FFT=True) <= (torus_center - int(torus_depth / 2))).astype(int) -
+                (walsa_radial_distances((nx, ny), FFT=True) <= (torus_center + int(torus_depth / 2) + 1)).astype(int)
             )
             spatial_ring_filter = spatial_ring_filter / np.nanmax(spatial_ring_filter)  # Ensure the peaks are at 1.0
             spatial_ring_filter[spatial_ring_filter != 1] = 0
@@ -695,11 +706,14 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
                 sigma = 17
 
             # Generate the Gaussian kernel
-            temporal_gaussian = gaussian_function(sigma=sigma, width=filter_width)
+            temporal_gaussian = gaussian_function(sigma=sigma, width=filter_width + 1)
 
             # Apply the Gaussian to the temporal filter
-            temporal_filter[pixel_f1_positive:pixel_f2_positive] = temporal_gaussian
-            temporal_filter[pixel_f2_negative:pixel_f1_negative] = temporal_gaussian
+            # DC: In this way you do not include f2_positive and f1_negative, which makes the filter not symmetric 
+            # temporal_filter[pixel_f1_positive:pixel_f2_positive] = temporal_gaussian
+            # temporal_filter[pixel_f2_negative:pixel_f1_negative] = temporal_gaussian
+            temporal_filter[pixel_f1_positive:pixel_f2_positive + 1] = temporal_gaussian
+            temporal_filter[pixel_f2_negative:pixel_f1_negative + 1] = np.flip(temporal_gaussian)
             # Normalize the filter to ensure the peaks are at 1.0
             temporal_filter /= np.nanmax(temporal_filter)
 
@@ -768,23 +782,25 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         # Apply the Gaussian filters to the data to prevent aliasing
-        for i in range(nt): 
-            threedft[i, :, :] *= spatial_ring_filter
+        # for i in range(nt): 
+        #     threedft[i, :, :] *= spatial_ring_filter
+        threedft *= spatial_ring_filter
 
-        for x in range(nx):  
-            for y in range(ny):  
-                threedft[:, x, y] *= temporal_filter
+        # for x in range(nx):  
+        #     for y in range(ny):  
+                # threedft[:, x, y] *= temporal_filter
+        threedft *= temporal_filter[:,np.newaxis,np.newaxis]
 
         # ALSO NEED TO ENSURE THE threedft ALIGNS WITH THE OLD FREQUENCY AXES USED BY THE /center CALL
-        if len(temporal_frequencies_orig) % 2 == 0:
-            for x in range(nx):  
-                for y in range(ny): 
-                    threedft[:, x, y] = np.roll(threedft[:, x, y], shift=1, axis=0)
+        # if len(temporal_frequencies_orig) % 2 == 0:
+        #     for x in range(nx):  
+        #         for y in range(ny): 
+        #             threedft[:, x, y] = np.roll(threedft[:, x, y], shift=1, axis=0)
 
-        if len(spatial_frequencies_orig) % 2 == 0:
-            for t in range(nt):  
-                threedft[t, :, :] = np.roll(threedft[t, :, :], shift=(1, 1), axis=(0, 1))
-                threedft[z, :, :] = np.roll(np.roll(threedft[z, :, :], shift=1, axis=0), shift=1, axis=1)
+        # if len(spatial_frequencies_orig) % 2 == 0:
+        #     for t in range(nt):  
+        #         threedft[t, :, :] = np.roll(threedft[t, :, :], shift=(1, 1), axis=(0, 1))
+        #         # threedft[t, :, :] = np.roll(np.roll(threedft[t, :, :], shift=1, axis=0), shift=1, axis=1)
 
         # Inverse FFT to get the filtered cube
         # filtered_cube = np.real(np.fft.ifftn(threedft, norm='ortho'))

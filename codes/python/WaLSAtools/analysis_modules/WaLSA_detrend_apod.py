@@ -15,102 +15,13 @@
 # limitations under the License.
 # 
 # Note: If you use WaLSAtools for research, please consider citing:
-# Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, 5, 21
+# Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, in press.
 # -----------------------------------------------------------------------------------------------------
 
-import numpy as np # type: ignore
-from scipy.optimize import curve_fit # type: ignore
-from .WaLSA_wavelet import cwt, significance # type: ignore
 
-# -------------------------------------- Wavelet ----------------------------------------
-def getWavelet(signal, time, **kwargs):
-    """
-    Perform wavelet analysis using the pycwt package.
-    
-    Parameters:
-        signal (array): The input signal (1D).
-        time (array): The time array corresponding to the signal.
-        siglevel (float): Significance level for the confidence intervals. Default: 0.95.
-        nperm (int): Number of permutations for significance testing. Default: 1000.
-        mother (str): The mother wavelet function to use. Default: 'morlet'.
-        GWS (bool): If True, calculate the Global Wavelet Spectrum. Default: False.
-        RGWS (bool): If True, calculate the Refined Global Wavelet Spectrum (time-integrated power, excluding COI and insignificant areas). Default: False.
-        dj (float): Scale spacing. Smaller values result in better scale resolution but slower calculations. Default: 0.025.
-        s0 (float): Initial (smallest) scale of the wavelet. Default: 2 * dt.
-        J (int): Number of scales minus one. Scales range from s0 up to s0 * 2**(J * dj), giving a total of (J + 1) scales. Default: (log2(N * dt / s0)) / dj.
-        lag1 (float): Lag-1 autocorrelation. Default: 0.0.
-        apod (float): Extent of apodization edges (of a Tukey window). Default: 0.1.
-        pxdetrend (int): Subtract linear trend with time per pixel. Options: 1 (simple) or 2 (advanced). Default: 2.
-        polyfit (int): Degree of polynomial fit for detrending the data. If set, a polynomial fit (instead of linear) is applied. Default: None.
-        meantemporal (bool): If True, apply simple temporal detrending by subtracting the mean signal from the data, skipping fitting procedures. Default: False.
-        meandetrend (bool): If True, subtract the linear trend with time for the image means (spatial detrending). Default: False.
-        recon (bool): If True, perform Fourier reconstruction of the input time series. This does not preserve amplitudes but is useful for examining frequencies far from the low-frequency range.  Default: False.
-        resample_original (bool): If True, and if recon set True, approximate values close to the original are returned for comparison. Default: False.
-        nodetrendapod (bool): If True, neither detrending nor apodization is performed. Default: False.
-        silent (bool): If True, suppress print statements. Default: False.
-        **kwargs: Additional parameters for the analysis method.
-    
-    Returns:
-        power: The wavelet power spectrum.
-        periods: Corresponding periods.
-        sig_slevel: The significance levels.
-        coi: The cone of influence.
-        Optionally, if global_power=True:
-        global_power: Global wavelet power spectrum.
-        global_conf: Confidence levels for the global wavelet spectrum.
-        Optionally, if RGWS=True:
-        rgws_periods: Periods for the refined global wavelet spectrum.
-        rgws_power: Refined global wavelet power spectrum.
-    """
-    # Define default values for the optional parameters similar to IDL
-    defaults = {
-        'siglevel': 0.95,
-        'mother': 'morlet',  # Morlet wavelet as the mother function
-        'dj': 1/32. ,  # Scale spacing
-        's0': -1,  # Initial scale
-        'J': -1,  # Number of scales
-        'lag1': 0.0,  # Lag-1 autocorrelation
-        'silent': False,
-        'nperm': 1000,   # Number of permutations for significance calculation
-    }
-
-    # Update defaults with any user-provided keyword arguments
-    params = {**defaults, **kwargs}
-
-    tdiff = np.diff(time)
-    cadence = np.median(tdiff)
-
-    n = len(signal)
-    dt = cadence
-
-    # Standardize the signal before the wavelet transform
-    std_signal = signal.std()
-    norm_signal = signal / std_signal
-
-    # Determine the initial scale s0 if not provided
-    if params['s0'] == -1:
-        params['s0'] = 2 * dt
-
-    # Determine the number of scales J if not provided
-    if params['J'] == -1:
-        params['J'] = int((np.log(float(n) * dt / params['s0']) / np.log(2)) / params['dj'])
-
-    # Perform wavelet transform
-    W, scales, frequencies, coi, _, _ = cwt(
-        norm_signal,
-        dt,
-        dj=params['dj'],
-        s0=params['s0'],
-        J=params['J'],
-        wavelet=params['mother']
-    )
-
-    power = np.abs(W) ** 2  # Wavelet power spectrum
-    periods = 1 / frequencies  # Convert frequencies to periods
-
-    return power, periods, coi, scales, W
-
-# -----------------------------------------------------------------------------------------------------
+import numpy as np
+from scipy.optimize import curve_fit
+from .WaLSA_wavelet import cwt, Morlet
 
 # Linear detrending function for curve fitting
 def linear(x, a, b):
@@ -138,7 +49,6 @@ def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=N
                        max_resample=None, silent=False, dj=32, lo_cutoff=None, hi_cutoff=None, upper=False):
     
     nt = len(cube)  # Assume input is a 1D signal
-    cube = cube - np.mean(cube) # Remove the mean of the input signal
     apocube = np.copy(cube)  # Create a copy of the input signal
     t = np.arange(nt)  # Time array
 
@@ -148,17 +58,14 @@ def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=N
         apocube = apocube * tukey_window  # Apodize the signal
     
     # Mean detrend (optional)
+    # DC this looks like removing the mean from the signal, why is there a fit?
     if meandetrend:
         avg_signal = np.mean(apocube)
-        time = np.arange(nt)
-        mean_fit_params, _ = curve_fit(linear, time, avg_signal)
-        mean_trend = linear(time, *mean_fit_params)
-        apocube -= mean_trend
+        # time = np.arange(nt)
+        # mean_fit_params, _ = curve_fit(linear, time, avg_signal)
+        # mean_trend = linear(time, *mean_fit_params)
+        apocube -= avg_signal#mean_trend
     
-    # Wavelet-based Fourier reconstruction (optional)
-    if recon and cadence:
-        apocube = WaLSA_wave_recon(apocube, cadence, dj=dj, lo_cutoff=lo_cutoff, hi_cutoff=hi_cutoff, upper=upper)
-
     # Pixel-based detrending (temporal detrend)
     if pxdetrend > 0:
         mean_val = np.mean(apocube)
@@ -175,6 +82,10 @@ def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=N
                 trend = linear(t, *popt)
             apocube -= trend
 
+    # Wavelet-based Fourier reconstruction (optional)
+    if recon and cadence:
+        apocube = WaLSA_wave_recon(apocube, cadence, dj=dj, lo_cutoff=lo_cutoff, hi_cutoff=hi_cutoff, upper=upper)
+    
     # Resampling to preserve amplitudes (optional)
     if resample_original:
         if min_resample is None:
@@ -189,51 +100,34 @@ def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=N
     return apocube
 
 # Wavelet-based reconstruction function (optional)
-def WaLSA_wave_recon(ts, delt, dj=32, lo_cutoff=None, hi_cutoff=None, upper=False):
-    """
-    Reconstructs the wavelet-filtered time series based on given frequency cutoffs.
-    """
+def WaLSA_wave_recon(signal, cadence, dj=32, lo_cutoff=None, hi_cutoff=None, upper=False):
+    mother = Morlet(6)
+    dt = cadence
+    n = len(signal)
+    
+    # Perform continuous wavelet transform (CWT) using the Morlet wavelet
+    wave, scales, freqs, coi, fft, fftfreqs = cwt(signal, dt, dj, 2 * dt, -1, mother)
+    period = 1 / freqs
 
-    # Define duration based on the time series length
-    dur = (len(ts) - 1) * delt
-
-    # Assign default values if lo_cutoff or hi_cutoff is None
-    if lo_cutoff is None:
-        lo_cutoff = 0.0  # Default to 0 as in IDL
-
+    # Set default high cutoff if not provided
     if hi_cutoff is None:
-        hi_cutoff = dur / (3.0 * np.sqrt(2)) 
-
-    mother = 'morlet'
-    num_points = len(ts)
-    time_array = np.linspace(0, (num_points - 1) * delt, num_points)
-
-    _, period, coi, scales, wave= getWavelet(signal=ts, time=time_array, method='wavelet', siglevel=0.99, apod=0.1, mother=mother)
-
-    # Ensure good_per_idx and bad_per_idx are properly assigned
+        hi_cutoff = n * dt / (3. * np.sqrt(2))
+    
+    # Filter periods based on the cutoff values
     if upper:
-        good_per_idx = np.where(period > hi_cutoff)[0][0]
-        bad_per_idx = len(period)
+        good_per = np.where(period > hi_cutoff)[0]
     else:
-        good_per_idx = np.where(period > lo_cutoff)[0][0]
-        bad_per_idx = np.where(period > hi_cutoff)[0][0]
+        good_per = np.where((period > lo_cutoff) & (period < hi_cutoff))[0]
+    
+    print(f"Filtering out frequencies below {1000. / hi_cutoff} mHz")
+    
+    # Filter out regions inside the cone of influence
+    filtered_wave = np.zeros_like(wave)
+    for i in range(n):
+        filtered_wave[i, good_per] = np.real(wave[i, good_per])
 
-    # set the power inside the CoI equal to zero 
-	# (i.e., exclude points inside the CoI -- subject to edge effect)
-    iampl = np.zeros((len(ts), len(period)), dtype=float)
-    for i in range(len(ts)):
-        pcol = np.real(wave[:, i])  # Extract real part of wavelet transform for this time index
-        ii = np.where(period < coi[i])[0]  # Find indices where period is less than COI at time i
-        if ii.size > 0:
-            iampl[i, ii] = pcol[ii]  # Assign values where condition is met
-
-    # Initialize reconstructed signal array
-    recon_sum = np.zeros(len(ts))
-    # Summation over valid period indices
-    for i in range(good_per_idx, bad_per_idx):
-        recon_sum += iampl[:, i] / np.sqrt(scales[i])
-
-    # Apply normalization factor
-    recon_all = dj * np.sqrt(delt) * recon_sum / (0.766 * (np.pi ** -0.25))
-
-    return recon_all
+    # Reconstruct the signal from filtered wavelet coefficients
+    recon_signal = np.sum(filtered_wave / np.sqrt(scales), axis=1)
+    recon_signal *= dj * np.sqrt(dt) / (0.766 * (np.pi ** -0.25))
+    
+    return recon_signal
