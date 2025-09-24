@@ -1,16 +1,16 @@
-## Contributors to WaLSAtools
+# Contributors to WaLSAtools
 
 The following individuals have contributed to the development, testing, or documentation of **WaLSAtools**, either directly in this repository or through collaborative efforts within the WaLSA Team. Many are also co-authors of the [*Wave analysis tools*](https://www.nature.com/articles/s43586-025-00392-0) introductory review article published in *Nature Reviews Methods Primers*, which inspired and supported the development of the library and its initial worked examples.
 
 We gratefully acknowledge their expertise, time, and support.
 
 
-### Project Lead
+## Project Lead
 
 - [**Shahin Jafarzadeh**](https://github.com/shahin-jafarzadeh) — Queen’s University Belfast, UK; Max Planck Institute for Solar System Research, Germany; University of Oslo, Norway
 
 
-### Contributors
+## Contributors
 
 - **David B. Jess** — Queen’s University Belfast, UK; California State University Northridge, USA  
 - **Marco Stangalini** — Italian Space Agency (ASI), Italy  
@@ -43,15 +43,15 @@ We gratefully acknowledge their expertise, time, and support.
 
 
 
-### Academic Citation
+## Academic Citation
 
 For academic references and citation information, please see the [Citation page](https://walsa.tools/citation/).
 
 
 
-### Want to Contribute?
+## Want to Contribute?
 
-If you'd like to contribute to **WaLSAtools**, check out the [Contribution Guide](https://walsa.tools/contribution/).
+If you would like to contribute to **WaLSAtools**, check out the [Contribution Guide](https://walsa.tools/contribution/).
 
 We welcome ideas, fixes, and collaborations from across disciplines. Thank you for supporting open and reproducible wave analysis!
 
