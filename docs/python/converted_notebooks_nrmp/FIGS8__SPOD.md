@@ -8,8 +8,12 @@ You may use, modify, and distribute this notebook and its contents under the ter
 ---
 
 **Important Note on Figures**: Figures generated using this notebook that are **identical to or derivative of those published in**:  
-**Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, in press**,  
+**[Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, 5, 21](https://www.nature.com/articles/s43586-025-00392-0)**
 are copyrighted by ***Nature Reviews Methods Primers***. Any reuse of such figures requires explicit permission from the journal.
+
+**Free access to a view-only version**: [https://WaLSA.tools/nrmp](https://WaLSA.tools/nrmp)
+
+**Supplementary Information**: [https://WaLSA.tools/nrmp-si](https://WaLSA.tools/nrmp-si)
 
 Figures that are newly created, modified, or unrelated to the published article may be used under the terms of the Apache License.
 
