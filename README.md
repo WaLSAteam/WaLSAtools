@@ -34,6 +34,14 @@ This repository is associated with a primer article titled *"Wave analysis tools
 
 **Supplementary Information**: [https://WaLSA.tools/nrmp-si](https://WaLSA.tools/nrmp-si)
 
+---
+
+⭐ **If you find WaLSAtools useful**, please consider giving it a star (click the ⭐ at the top right of this page).  
+It helps others discover the project and supports the growth of an open, cross-disciplinary wave analysis community.
+
+🔔 To stay updated on new releases and features, click **“Watch → Custom → Releases”** at the top of the page.
+
+---
 
 ## **Key Features**
 
