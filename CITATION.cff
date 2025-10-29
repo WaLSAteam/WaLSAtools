@@ -1,0 +1,84 @@
+cff-version: 1.2.0
+message: "If you use WaLSAtools, please cite the NRMP article and the archived software DOI."
+title: "WaLSAtools - Wave Analysis Tools"
+type: software
+authors:
+  - name: WaLSA Team
+contact:
+  - family-names: Jafarzadeh
+    given-names: Shahin
+    orcid: "0000-0002-7711-5397"
+    email: "shahin.jafarzadeh@walsa.team"
+
+repository-code: "https://github.com/WaLSAteam/WaLSAtools"
+repository-artifact: "https://doi.org/10.5281/zenodo.14978610"
+url: "https://WaLSA.tools"
+keywords: [wave analysis, signal processing, time series, spectral analysis, FFT, wavelet]
+
+# Software DOI(s)
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.14978610
+
+# Primary paper to cite
+preferred-citation:
+  type: article
+  title: "Wave analysis tools"
+  authors:
+    - family-names: Jafarzadeh
+      given-names: Shahin
+    - family-names: Jess
+      given-names: David B.
+    - family-names: Stangalini
+      given-names: Marco
+    - family-names: Grant
+      given-names: Samuel D. T.
+    - family-names: Higham
+      given-names: Jonathan E.
+    - family-names: Pessah
+      given-names: Martin E.
+    - family-names: Keys
+      given-names: Peter H.
+    - family-names: Belov
+      given-names: Sergey
+    - family-names: Calchetti
+      given-names: Daniele
+    - family-names: Duckenfield
+      given-names: Timothy J.
+    - family-names: Fedun
+      given-names: Viktor
+    - family-names: Fleck
+      given-names: Bernhard
+    - family-names: Gafeira
+      given-names: Ricardo
+    - family-names: Jefferies
+      given-names: Stuart M.
+    - family-names: Khomenko
+      given-names: Elena
+    - family-names: Morton
+      given-names: Richard J.
+    - family-names: Norton
+      given-names: Aimee A.
+    - family-names: Rajaguru
+      given-names: S. P.
+    - family-names: Schiavo
+      given-names: Luiz A. C. A.
+    - family-names: Sharma
+      given-names: Rahul
+    - family-names: Silva
+      given-names: Suzana S. A.
+    - family-names: Solanki
+      given-names: Sami K.
+    - family-names: Steiner
+      given-names: Oskar
+    - family-names: Verth
+      given-names: Gary
+    - family-names: Vigeesh
+      given-names: Gangadharan
+    - family-names: Yadav
+      given-names: Nitin
+  year: 2025
+  journal: "Nature Reviews Methods Primers"
+  volume: "5"
+  number: "21"
+  doi: "10.1038/s43586-025-00392-0"
