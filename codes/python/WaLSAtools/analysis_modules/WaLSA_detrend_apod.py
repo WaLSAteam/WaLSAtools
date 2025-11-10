@@ -18,6 +18,7 @@
 # Jafarzadeh, S., Jess, D. B., Stangalini, M. et al. 2025, Nature Reviews Methods Primers, 5, 21
 # -----------------------------------------------------------------------------------------------------
 
+from ast import If
 import numpy as np # type: ignore
 from scipy.optimize import curve_fit # type: ignore
 from .WaLSA_wavelet import cwt, significance # type: ignore
@@ -133,59 +134,81 @@ def custom_tukey(nt, apod=0.1):
 # Main detrending and apodization function
 # apod=0: The Tukey window becomes a rectangular window (no tapering).
 # apod=1: The Tukey window becomes a Hann window (fully tapered with a cosine function).
-def WaLSA_detrend_apod(cube, apod=0.1, meandetrend=False, pxdetrend=2, polyfit=None, meantemporal=False,
-                       recon=False, cadence=None, resample_original=False, min_resample=None, 
-                       max_resample=None, silent=False, dj=32, lo_cutoff=None, hi_cutoff=None, upper=False):
+def WaLSA_detrend_apod(
+    cube,
+    apod=0.1,
+    meandetrend=False,
+    pxdetrend=2, # removed!
+    polyfit=None,
+    meantemporal=False,
+    recon=False,
+    cadence=None,
+    resample_original=False,
+    min_resample=None,
+    max_resample=None,
+    silent=False,
+    dj=32,
+    lo_cutoff=None,
+    hi_cutoff=None,
+    upper=False,
+):
+    """
+    1D preprocessing pipeline:
+    Detrend (mean / linear / polynomial) -> (optional) wavelet recon/filter ->
+    (optional) rescale -> Apodize (Tukey) last.
+    """
     
-    nt = len(cube)  # Assume input is a 1D signal
-    cube = cube - np.mean(cube) # Remove the mean of the input signal
-    apocube = np.copy(cube)  # Create a copy of the input signal
-    t = np.arange(nt)  # Time array
+    # Ensure float array and local working copy
+    apocube = np.asarray(cube, dtype=float).copy()
+    nt = apocube.size
 
-    # Apply Tukey window (apodization)
-    if apod > 0:
-        tukey_window = custom_tukey(nt, apod)
-        apocube = apocube * tukey_window  # Apodize the signal
-    
-    # Mean detrend (optional)
-    if meandetrend:
-        avg_signal = np.mean(apocube)
-        time = np.arange(nt)
-        mean_fit_params, _ = curve_fit(linear, time, avg_signal)
-        mean_trend = linear(time, *mean_fit_params)
-        apocube -= mean_trend
-    
-    # Wavelet-based Fourier reconstruction (optional)
-    if recon and cadence:
-        apocube = WaLSA_wave_recon(apocube, cadence, dj=dj, lo_cutoff=lo_cutoff, hi_cutoff=hi_cutoff, upper=upper)
+    # Time axis for detrending: use physical seconds if cadence provided
+    if cadence is not None:
+        t = np.arange(nt, dtype=float) * float(cadence)
+    else:
+        t = np.arange(nt, dtype=float)
 
-    # Pixel-based detrending (temporal detrend)
-    if pxdetrend > 0:
-        mean_val = np.mean(apocube)
-        if meantemporal:
-            # Simple temporal detrend by subtracting the mean
-            apocube -= mean_val
-        else:
-            # Advanced detrend (linear or polynomial fit)
-            if polyfit is not None:
-                poly_coeffs = np.polyfit(t, apocube, polyfit)
-                trend = np.polyval(poly_coeffs, t)
-            else:
-                popt, _ = curve_fit(linear, t, apocube, p0=[mean_val, 0])
-                trend = linear(t, *popt)
-            apocube -= trend
+    # ---------------- DETREND ----------------
+    if meantemporal or meandetrend:
+        # DC removal
+        apocube -= apocube.mean()
+    if polyfit is not None:
+        # Polynomial detrend of given degree
+        deg = int(polyfit)
+        coeffs = np.polyfit(t, apocube, deg)
+        trend = np.polyval(coeffs, t)
+    else:
+        # Linear detrend (slope + intercept)
+        slope, intercept = np.polyfit(t, apocube, 1)
+        trend = slope * t + intercept
+        # mean_val = np.mean(apocube)
+        # popt, _ = curve_fit(linear, t, apocube, p0=[mean_val, 0])
+        # trend = linear(t, *popt)
+    apocube -= trend
 
-    # Resampling to preserve amplitudes (optional)
+    # -------- OPTIONAL wavelet reconstruction / filtering --------
+    if recon and cadence is not None:
+        apocube = WaLSA_wave_recon(
+            apocube, float(cadence), dj=dj,
+            lo_cutoff=lo_cutoff, hi_cutoff=hi_cutoff, upper=upper
+        )
+
+    # -------- OPTIONAL rescale to preserve amplitudes --------
     if resample_original:
         if min_resample is None:
-            min_resample = np.min(apocube)
+            min_resample = float(np.min(apocube))
         if max_resample is None:
-            max_resample = np.max(apocube)
+            max_resample = float(np.max(apocube))
         apocube = np.interp(apocube, (np.min(apocube), np.max(apocube)), (min_resample, max_resample))
+
+    # ---------------- APODIZATION (Tukey) ----------------
+    if apod > 0:
+        tukey_window = custom_tukey(nt, apod)
+        apocube *= tukey_window
 
     if not silent:
         print("Detrending and apodization complete.")
-    
+
     return apocube
 
 # Wavelet-based reconstruction function (optional)

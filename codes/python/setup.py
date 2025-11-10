@@ -33,7 +33,7 @@ except FileNotFoundError:
 
 setup(
     name='WaLSAtools',
-    version='1.0.0.post4',
+    version='1.0.0.post5',
     author='WaLSA Team - Shahin Jafarzadeh',
     author_email='Shahin.Jafarzadeh@WaLSA.team',
     description='Wave analysis tools: A package for analyzing wave and oscillatory signals',
