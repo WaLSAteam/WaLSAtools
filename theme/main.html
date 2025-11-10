@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block extrahead %}
+{% set title = config.site_name %}
+{% if page and page.title and not page.is_homepage %}
+{% set title = config.site_name ~ " - " ~ page.title | striptags %}
+{% endif %}
+{% set image = config.site_url ~ 'assets/images/banner.png' %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description"
+  content="Documentation for WaLSAtools - Wave Analysis Tools: information on an ever-expanding set of wave analysis tools, initiated by the WaLSA Team, with a focus on reliability, reproducibility, and open science.">
+<meta property="og:url" content="{{ page.canonical_url }}">
+<meta property="og:image" content="https://walsa.tools/images/WaLSA_analysis_tools_illustration.png">
+<meta property="og:image:type" content="image/png">
+<link rel="stylesheet" href="{{ 'overrides/assets/stylesheets/main.css' | url }}">
+<link rel="shortcut icon" href="https://walsa.tools/images/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="https://walsa.tools/images/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="https://walsa.tools/images/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://walsa.tools/images/apple-touch-icon.png">
+<link rel="manifest" href="https://walsa.tools/images/misc/site.webmanifest">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-config" content="https://walsa.tools/images/misc/browserconfig.xml">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WaLSAtools">
+<meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+{% block announce %}
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="{{ 'overrides/assets/javascripts/bundle.068fb875.min.js' | url }}"></script>
+{% endblock %}
