@@ -863,7 +863,7 @@ def significance(signal, dt, scales, sigma_test=0, alpha=None,
 
 
 def xwt(y1, y2, dt, dj=1/12, s0=-1, J=-1, significance_level=0.95,
-        wavelet='morlet', normalize=False, no_default_signif=False):
+        wavelet='morlet', normalize=False, no_default_signif=True):
     """Cross wavelet transform (XWT) of two signals.
 
     The XWT finds regions in time frequency space where the time series
@@ -953,6 +953,12 @@ def xwt(y1, y2, dt, dj=1/12, s0=-1, J=-1, significance_level=0.95,
     # Calculates the cross CWT of y1 and y2.
     W12 = W1 * W2.conj()
 
+    if no_default_signif:
+        a1 = a2 = 0.0   # placeholders; won’t be used for MC significance
+    else:
+        a1, _, _ = ar1(y1)
+        a2, _, _ = ar1(y2)
+
     # And the significance tests. Note that the confidence level is calculated
     # using the percent point function (PPF) of the chi-squared cumulative
     # distribution function (CDF) instead of using Z1(95%) = 2.182 and
@@ -962,8 +968,6 @@ def xwt(y1, y2, dt, dj=1/12, s0=-1, J=-1, significance_level=0.95,
     # to be calculated.
     if normalize:
         std1 = std2 = 1.
-    a1, _, _ = ar1(y1)
-    a2, _, _ = ar1(y2)
     Pk1 = ar1_spectrum(freq * dt, a1)
     Pk2 = ar1_spectrum(freq * dt, a2)
     dof = wavelet.dofmin
