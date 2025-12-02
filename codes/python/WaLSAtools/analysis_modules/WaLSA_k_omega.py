@@ -436,6 +436,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
     temporal_fft = None
     temporal_frequencies = None
     spatial_frequencies = None
+    temporal_filter = None
 
     # Check and adjust format if necessary
     if params['format'] == 'xyt':
