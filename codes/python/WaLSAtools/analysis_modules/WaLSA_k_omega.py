@@ -374,7 +374,6 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         no_spatial_filt (bool): If True, ensures no spatial filtering is performed on the dataset (i.e., only temporal filtering is applied).
         no_temporal_filt (bool): If True, ensures no temporal filtering is performed on the dataset (i.e., only spatial filtering is applied).
         silent (bool): If True, suppresses the k-ω diagram plot.
-        smooth (bool): If True, power is smoothed. Default: True.
         mode (int): Output power mode: 0 = log10(power) (default), 1 = linear power, 2 = sqrt(power) = amplitude.
         processing_maps (bool): If True, the function returns the processing maps (spatial_fft_map, torus_map, spatial_fft_filtered_map, temporal_fft, temporal_filter, temporal_frequencies, spatial_frequencies). Otherwise, they are all returned as None. Default: False.
 
@@ -409,7 +408,6 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         'yrange': None,
         'nox2': False,
         'noy2': False,
-        'smooth': True,
         'mode': 0,
         'xtitle': 'Wavenumber',
         'xtitle_units': '(pixel⁻¹)',
@@ -440,7 +438,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
 
     # Check and adjust format if necessary
     if params['format'] == 'xyt':
-        cube = np.transpose(cube, (2, 0, 1))  # Convert 'xyt' to 'txy'
+        signal = np.transpose(signal, (2, 0, 1))  # Convert 'xyt' to 'txy'
     elif params['format'] != 'txy':
         raise ValueError("Unsupported format. Choose 'txy' or 'xyt'.")
     if not params['silent']:
@@ -450,7 +448,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
     nt, nx, ny = signal.shape
     if nx != ny:
         min_dim = min(nx, ny)
-        signal = signal[:min_dim, :min_dim, :]
+        signal = signal[:,:min_dim, :min_dim]
     nt, nx, ny = signal.shape
 
     # Calculating the Nyquist frequencies
@@ -468,7 +466,7 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
     print("")
     print("Temporally, the important values are:")
     print(f"    2-element duration (Nyquist period) = {cadence * 2:.2f} {params['y2ndaxistitle_units']}")
-    print(f"    Time series duration = {cadence * signal.shape[2]:.2f} {params['y2ndaxistitle_units']}")
+    print(f"    Time series duration = {cadence * signal.shape[0]:.2f} {params['y2ndaxistitle_units']}")
     temporal_nyquist = 1 / (cadence * 2)
     print(f"    Nyquist frequency = {temporal_nyquist:.2f} {params['yttitle_units']}")
     if params['no_temporal_filt']:
