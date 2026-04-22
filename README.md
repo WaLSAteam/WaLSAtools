@@ -13,7 +13,7 @@
     <a href="https://walsa.team" target="_blank"><img src="https://img.shields.io/badge/powered%20by-WaLSA%20Team-000d1a"></a>
     <a href="https://walsa.tools/license"><img src="https://img.shields.io/badge/license-Apache%202.0-green"></a>
     <a href="https://doi.org/10.5281/zenodo.14978610"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.14978610.svg" alt="DOI"></a>
-    <a href="https://github.com/WaLSAteam/WaLSAtools/blob/main/CONTRIBUTORS.md"><img src="https://img.shields.io/badge/contributors-29-gold" alt="Contributors"></a>
+    <a href="https://github.com/WaLSAteam/WaLSAtools/blob/main/CONTRIBUTORS.md"><img src="https://img.shields.io/badge/contributors-30-gold" alt="Contributors"></a>
     <a href="https://pypi.org/project/WaLSAtools/"><img src="https://img.shields.io/pypi/v/WaLSAtools.svg" alt="PyPI Latest Release"></a>
     <a href="https://github.com/WaLSAteam/WaLSAtools/actions/workflows/ci.yml"><img src="https://github.com/WaLSAteam/WaLSAtools/workflows/docs/badge.svg"></a>
 </p>
