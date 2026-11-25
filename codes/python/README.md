@@ -78,11 +78,11 @@ Interactive usage is supported both in standard Python terminals and Jupyter not
 
 # Requirements
 
-WaLSAtools requires Python ≥ 3.8 and automatically installs the following core dependencies:
+WaLSAtools requires Python ≥ 3.11 and automatically installs the following core dependencies:
 
-`astropy`, `IPython`, `ipywidgets`, `matplotlib`, `numba`, `numpy`, `pyFFTW`, `scipy`, `setuptools`, `scikit-image`, `tqdm`.
+`astropy`, `IPython`, `ipywidgets`, `matplotlib`, `numba`, `numpy`, `scipy`, `setuptools`, `scikit-image`, `tqdm`.
 
-All dependencies are handled automatically during installation.
+pip selects the required dependencies for your Python version. On Python 3.15 and later, pyFFTW is optional and wavelet analysis uses the existing SciPy FFT backend when pyFFTW is absent.
 
 # License
 

@@ -41,7 +41,7 @@ def WaLSA_speclizer(signal=None, time=None, method=None,
     Returns:
         Power spectrum, frequencies, and significance (if applicable).
     """
-    if not dominantfreq or not averagedpower:
+    if not (dominantfreq or averagedpower):
         if method == 'fft':
             return getpowerFFT(signal, time=time, **kwargs)
         elif method == 'lombscargle':
@@ -109,36 +109,36 @@ def getpowerFFT(signal, time, **kwargs):
     tdiff = np.diff(time)
     cadence = np.median(tdiff)
 
-    # Perform detrending and apodization
-    if not params['nodetrendapod']:
-        apocube = WaLSA_detrend_apod(
-            signal, 
-            apod=params['apod'], 
-            meandetrend=params['meandetrend'], 
-            pxdetrend=params['pxdetrend'], 
-            polyfit=params['polyfit'], 
-            meantemporal=params['meantemporal'], 
-            recon=params['recon'], 
-            cadence=cadence, 
-            resample_original=params['resample_original'], 
-            silent=params['silent']
+    def preprocess(values, *, silent):
+        if params['nodetrendapod']:
+            return values
+        return WaLSA_detrend_apod(
+            values,
+            apod=params['apod'],
+            meandetrend=params['meandetrend'],
+            pxdetrend=params['pxdetrend'],
+            polyfit=params['polyfit'],
+            meantemporal=params['meantemporal'],
+            recon=params['recon'],
+            cadence=cadence,
+            resample_original=params['resample_original'],
+            silent=silent,
         )
-    else:
-        apocube = signal
-    
+
+    apocube = preprocess(signal, silent=params['silent'])
+
     nt = len(apocube)  # Length of the time series (1D)
 
-    # Calculate the frequencies
-    frequencies = 1. / (cadence * 2) * np.arange(nt // 2 + 1) / (nt // 2)
-    frequencies = frequencies[1:]
+    # Label the retained positive DFT bins (DC is omitted).
+    frequencies = np.fft.rfftfreq(nt, d=float(cadence))[1:]
+    # Preserve the historical scaling of power and randomisation thresholds.
+    legacy_df = 1. / (cadence * 2) * np.int64(1) / (nt // 2)
     powermap = np.zeros(len(frequencies))
-    signal = apocube
-    spec = np.fft.fft(signal)
+    spec = np.fft.fft(apocube)
     power = 2 * np.abs(spec[1:len(frequencies) + 1]) ** 2
-    powermap[:] = power / frequencies[0]
+    powermap[:] = power / legacy_df
 
     if params['amplitude']:
-        amplitudes = np.zeros((len(signal), len(frequencies)), dtype=np.complex_)
         amplitudes = spec[1:len(frequencies) + 1]
     else: 
         amplitudes = None
@@ -147,26 +147,15 @@ def getpowerFFT(signal, time, **kwargs):
     if not params['nosignificance']:
         ps_perm = np.zeros((len(frequencies), params['nperm']))
         for ip in range(params['nperm']):
-            perm_signal = np.random.permutation(signal)  # Permuting the original signal
-            apocube = WaLSA_detrend_apod(
-                perm_signal, 
-                apod=params['apod'], 
-                meandetrend=params['meandetrend'], 
-                pxdetrend=params['pxdetrend'], 
-                polyfit=params['polyfit'], 
-                meantemporal=params['meantemporal'], 
-                recon=params['recon'], 
-                cadence=cadence, 
-                resample_original=params['resample_original'], 
-                silent=True
-            )
+            # Shuffle the original samples and apply the observed preprocessing once.
+            perm_signal = preprocess(np.random.permutation(signal), silent=True)
             perm_spec = np.fft.fft(perm_signal)
             perm_power = 2 * np.abs(perm_spec[1:len(frequencies) + 1]) ** 2
             ps_perm[:, ip] = perm_power
 
         # Correct call to WaLSA_confidence
         significance = WaLSA_confidence(ps_perm, siglevel=params['siglevel'], nf=len(frequencies))
-        significance = significance / frequencies[0]
+        significance = significance / legacy_df
     else:
         significance = None
 
@@ -207,7 +196,7 @@ def getpowerLS(signal, time, **kwargs):
     """
     # Define default values for the optional parameters
     defaults = {
-        'siglevel': 0.05,
+        'siglevel': 0.95,
         'nperm': 1000,
         'nosignificance': False,
         'apod': 0.1,
@@ -260,18 +249,20 @@ def getpowerLS(signal, time, **kwargs):
         ps_perm = np.zeros((len(frequencies), params['nperm']))
         for ip in range(params['nperm']):
             perm_signal = np.random.permutation(signal)  # Permuting the original signal
-            apocubep = WaLSA_detrend_apod(
-                perm_signal, 
-                apod=params['apod'], 
-                meandetrend=params['meandetrend'], 
-                pxdetrend=params['pxdetrend'], 
-                polyfit=params['polyfit'], 
-                meantemporal=params['meantemporal'], 
-                recon=params['recon'], 
-                cadence=cadence, 
-                resample_original=params['resample_original'], 
-                silent=True
-            )
+            apocubep = perm_signal
+            if not params['nodetrendapod']:
+                apocubep = WaLSA_detrend_apod(
+                    perm_signal,
+                    apod=params['apod'],
+                    meandetrend=params['meandetrend'],
+                    pxdetrend=params['pxdetrend'],
+                    polyfit=params['polyfit'],
+                    meantemporal=params['meantemporal'],
+                    recon=params['recon'],
+                    cadence=cadence,
+                    resample_original=params['resample_original'],
+                    silent=True
+                )
             frequencies, perm_power = LombScargle(time, apocubep, dy=params['dy'], fit_mean=params['fit_mean'], 
                                      center_data=params['center_data'], nterms=params['nterms'], 
                                      normalization=params['normalization']).autopower()
@@ -375,6 +366,8 @@ def getpowerWavelet(signal, time, **kwargs):
 
     # Standardize the signal before the wavelet transform
     std_signal = apocube.std()
+    if std_signal == 0:
+        raise ValueError("Wavelet power requires a signal with non-zero variance.")
     norm_signal = apocube / std_signal
 
     # Determine the initial scale s0 if not provided
@@ -417,13 +410,13 @@ def getpowerWavelet(signal, time, **kwargs):
     if params['GWS']:
         global_power = np.mean(power, axis=1)  # Average along the time axis
 
-        dof = n - scales   # the -scale corrects for padding at edges
+        dof = n - scales / dt   # Subtract the scale expressed in samples.
         global_conf, _ = significance(
             norm_signal,                   # time series data
             dt,              # time step between values
             scales,          # scale vector
             1,               # sigtest = 1 for "time-average" test
-            0.0,
+            params['lag1'],
             significance_level=params['siglevel'],
             dof=dof,
             wavelet=params['mother']
@@ -451,6 +444,19 @@ def getpowerWavelet(signal, time, **kwargs):
     return power, periods, sig_slevel, coi, global_power, global_conf, rgws_power
 
 # -------------------------------------- Welch ----------------------------------------
+def _welch_settings(length, cadence, kwargs):
+    """Use a common segment and window for Welch and paired Welch estimates."""
+    window = kwargs.get('window', 'hann')
+    requested_segment = kwargs.get('nperseg')
+    if requested_segment is None:
+        requested_segment = 256 if isinstance(window, (str, tuple)) else len(window)
+    nperseg = min(requested_segment, length)
+    noverlap = kwargs.get('noverlap')
+    if noverlap is None:
+        noverlap = 128 if nperseg > 128 else nperseg // 2
+    return dict(fs=1.0 / cadence, window=window, nperseg=nperseg, noverlap=noverlap)
+
+
 def welch_psd(signal, time, **kwargs):
     """
     Calculate Welch Power Spectral Density (PSD) and significance levels.
@@ -487,18 +493,17 @@ def welch_psd(signal, time, **kwargs):
     tdiff = np.diff(time)
     cadence = np.median(tdiff)
 
-    # Calculate Welch PSD
-    frequencies, psd = welch(signal, fs=1.0 / cadence, window=params['window'], nperseg=params['nperseg'], noverlap=params['noverlap'])
+    # Reuse the same settings for observed and permuted spectra.
+    settings = _welch_settings(len(signal), cadence, kwargs)
+    frequencies, psd = welch(signal, **settings)
 
-    # Calculate significance levels using permutation
-    ps_perm = np.zeros((len(frequencies), params['nperm']))
-    for ip in range(params['nperm']):
-        perm_signal = np.random.permutation(signal)  # Permuting the original signal
-        _, perm_psd = welch(perm_signal, fs=1.0 / cadence, window=params['window'], nperseg=params['nperseg'], noverlap=params['noverlap'])
-        ps_perm[:, ip] = perm_psd
-
-    # Calculate significance level for Welch PSD
-    significance = np.percentile(ps_perm, params['siglevel'] * 100, axis=1)
+    significance = None
+    if not params.get('nosignificance', False):
+        ps_perm = np.zeros((len(frequencies), params['nperm']))
+        for ip in range(params['nperm']):
+            perm_signal = np.random.permutation(signal)
+            _, ps_perm[:, ip] = welch(perm_signal, **settings)
+        significance = np.percentile(ps_perm, params['siglevel'] * 100, axis=1)
 
     if not params['silent']:
         print("Welch processed.")
@@ -521,24 +526,20 @@ def apply_emd(signal, time):
     return imfs
 
 # Function to apply EEMD and return Intrinsic Mode Functions (IMFs)
-def apply_eemd(signal, time, noise_std=0.2, num_realizations=1000):
-    eemd = EEMD()
-    eemd.FIXE_H = 5
+def apply_eemd(signal, time, noise_std=0.2, num_realizations=100):
+    eemd = EEMD(trials=num_realizations)
     eemd.noise_seed(12345)
     eemd.noise_width = noise_std
-    eemd.ensemble_size = num_realizations
     imfs = eemd.eemd(signal, time)
     return imfs
 
 # Function to generate white noise IMFs for significance testing
-def generate_white_noise_imfs(signal_length, time, num_realizations, use_eemd=None, noise_std=0.2):
+def generate_white_noise_imfs(signal_length, time, num_realizations, use_eemd=None, noise_std=0.2, ensemble_trials=100):
     white_noise_imfs = []
     if use_eemd:
-        eemd = EEMD()
-        eemd.FIXE_H = 5
+        eemd = EEMD(trials=ensemble_trials)
         eemd.noise_seed(12345)
         eemd.noise_width = noise_std
-        eemd.ensemble_size = num_realizations
         for _ in range(num_realizations):
             white_noise = np.random.normal(size=signal_length)
             imfs = eemd.eemd(white_noise, time)
@@ -602,7 +603,7 @@ def compute_hht_power_spectrum(imfs, instantaneous_frequencies, freq_bins):
     return power_spectrum
 
 # Function to compute significance level for HHT power spectrum
-def compute_significance_level(white_noise_imfs, freq_bins, time):
+def compute_significance_level(white_noise_imfs, freq_bins, time, siglevel=0.95):
     all_power_spectra = []
     for imfs in white_noise_imfs:
         instantaneous_frequencies = compute_instantaneous_frequency(imfs, time)
@@ -610,7 +611,7 @@ def compute_significance_level(white_noise_imfs, freq_bins, time):
         all_power_spectra.append(power_spectrum)
     
     # Compute the 95th percentile power spectrum as the significance level
-    significance_level = np.percentile(all_power_spectra, 95, axis=0)
+    significance_level = np.percentile(all_power_spectra, 100 * siglevel, axis=0)
     
     return significance_level
 
@@ -668,11 +669,11 @@ def calculate_fft_psd_spectra_randomized(imfs, time, num_realizations):
     return np.array(all_psd_spectra)
 
 # Function to calculate the 95th percentile confidence level
-def calculate_confidence_level(imfs, time, num_realizations):
+def calculate_confidence_level(imfs, time, num_realizations, siglevel=0.95):
     confidence_levels = []
     for imf in imfs:
         all_psd_spectra = calculate_fft_psd_spectra_randomized([imf], time, num_realizations)
-        confidence_level = np.percentile(all_psd_spectra, 95, axis=0)
+        confidence_level = np.percentile(all_psd_spectra, 100 * siglevel, axis=0)
         confidence_levels.append(confidence_level)
     return confidence_levels
 
@@ -695,11 +696,11 @@ def calculate_welch_psd_spectra_randomized(imfs, fs, num_realizations):
     return np.array(all_psd_spectra)
 
 # Function to calculate the 95th percentile confidence level
-def calculate_confidence_level_welch(imfs, fs, num_realizations):
+def calculate_confidence_level_welch(imfs, fs, num_realizations, siglevel=0.95):
     confidence_levels = []
     for imf in imfs:
         all_psd_spectra = calculate_welch_psd_spectra_randomized([imf], fs, num_realizations)
-        confidence_level = np.percentile(all_psd_spectra, 95, axis=0)
+        confidence_level = np.percentile(all_psd_spectra, 100 * siglevel, axis=0)
         confidence_levels.append(confidence_level)
     return confidence_levels
 
@@ -757,8 +758,13 @@ def getEMD_HHT(signal, time, **kwargs):
     cadence = np.median(tdiff)
 
     # Perform detrending and apodization
-    if not params['nodetrendapod']:
-        apocube = WaLSA_detrend_apod(
+    preprocessing_requested = (
+        kwargs.get('nodetrendapod') is False
+        or any(name in kwargs for name in ('apod', 'meandetrend', 'meantemporal',
+                                           'polyfit', 'recon', 'resample_original'))
+    )
+    if preprocessing_requested and not params['nodetrendapod']:
+        signal = WaLSA_detrend_apod(
             signal, 
             apod=params['apod'], 
             meandetrend=params['meandetrend'], 
@@ -771,23 +777,31 @@ def getEMD_HHT(signal, time, **kwargs):
             silent=params['silent']
         )
 
-    n = len(apocube)
     dt = cadence
     fs = 1 / dt  # Sampling frequency
 
     if params['EEMD']:
-        imfs = apply_eemd(signal, time)
+        eemd_kwargs = {key: kwargs[key] for key in ('noise_std', 'num_realizations') if key in kwargs}
+        imfs = apply_eemd(signal, time, **eemd_kwargs)
         use_eemd = True
     else:
         imfs = apply_emd(signal, time)
         use_eemd = False
 
-    white_noise_imfs = generate_white_noise_imfs(len(signal), time, params['nperm'], use_eemd=use_eemd)
+    white_noise_imfs = generate_white_noise_imfs(
+        len(signal), time, params['nperm'], use_eemd=use_eemd,
+        noise_std=kwargs.get('noise_std', 0.2),
+        ensemble_trials=kwargs.get('num_realizations', 100))
 
     IMF_significance_levels = test_imf_significance(imfs, white_noise_imfs)
 
     # Determine significant IMFs
-    significant_imfs_val = [imf for imf, sig_level in zip(imfs, IMF_significance_levels) if sig_level < params['siglevel']]
+    tail_probability = 1 - params['siglevel']
+    significant_imfs_val = [
+        imf for imf, p_value in zip(imfs, IMF_significance_levels)
+        if p_value < tail_probability
+    ]
+    unselected_imfs = imfs
     if params['significant_imfs']:
         imfs = significant_imfs_val
 
@@ -798,21 +812,23 @@ def getEMD_HHT(signal, time, **kwargs):
         # Calculate and plot Welch PSD spectra of (significant) IMFs
         psd_spectra = calculate_welch_psd_spectra(imfs, fs)
         # Calculate 95th percentile confidence levels for Welch PSD spectra
-        psd_confidence_levels = calculate_confidence_level_welch(imfs, fs, params['nperm'])
+        psd_confidence_levels = calculate_confidence_level_welch(imfs, fs, params['nperm'], params['siglevel'])
     else:
         # Calculate and plot FFT PSD spectra of (significant) IMFs
         psd_spectra = calculate_fft_psd_spectra(imfs, time)
         # Calculate 95th percentile confidence levels for FFT PSD spectra
-        psd_confidence_levels = calculate_confidence_level(imfs, time, params['nperm'])
+        psd_confidence_levels = calculate_confidence_level(imfs, time, params['nperm'], params['siglevel'])
 
     # Define frequency bins for HHT power spectrum
-    max_freq = max([freq.max() for freq in instantaneous_frequencies])
+    grid_frequencies = (instantaneous_frequencies if len(imfs)
+                        else compute_instantaneous_frequency(unselected_imfs, time))
+    max_freq = max((freq.max() for freq in grid_frequencies if freq.size), default=0.0)
     HHT_freq_bins = np.linspace(0, max_freq, 100)
 
     # Compute HHT power spectrum of (significant) IMFs
     HHT_power_spectrum = compute_hht_power_spectrum(imfs, instantaneous_frequencies, HHT_freq_bins)
     # Compute significance level for HHT power spectrum
-    HHT_significance_level = compute_significance_level(white_noise_imfs, HHT_freq_bins, time)    
+    HHT_significance_level = compute_significance_level(white_noise_imfs, HHT_freq_bins, time, params['siglevel'])
 
     if not params['silent']:
         if params['EEMD']:
@@ -873,12 +889,18 @@ def get_dominant_averaged(cube, time, **kwargs):
             print(f"Processing {method_name} for a 3D cube with format '{params['format']}' and shape {cube.shape}.")
             print(f"Calculating Dominant frequencies and/or averaged power spectrum ({method_name}) ....")
 
+    # Merge per-pixel options once so caller keywords are never duplicated.
+    pixel_kwargs = {**kwargs, 'silent': True}
+    if params['method'] == 'wavelet':
+        pixel_kwargs.update(GWS=params['GWS'], RGWS=params['RGWS'])
+        if not (params['GWS'] or params['RGWS']):
+            raise ValueError("Cube wavelet analysis requires GWS or RGWS.")
     # Iterate over spatial coordinates and apply the chosen analysis method
     if params['method'] == 'fft':
         for x in tqdm(range(nx), desc="Processing x", leave=True):
             for y in range(ny):
                 signal = cube[:, x, y]
-                fft_power, fft_freqs, _, _ = getpowerFFT(signal, time, silent=True, nosignificance=True, **kwargs)
+                fft_power, fft_freqs, _, _ = getpowerFFT(signal, time, **{**pixel_kwargs, 'nosignificance': True})
                 if x == 0 and y == 0:
                     powermap = np.zeros((nx, ny, len(fft_freqs)))
                 powermap[x, y, :] = fft_power
@@ -894,7 +916,7 @@ def get_dominant_averaged(cube, time, **kwargs):
         for x in tqdm(range(nx), desc="Processing x", leave=True):
             for y in range(ny):
                 signal = cube[:, x, y]
-                ls_power, ls_freqs, _ = getpowerLS(signal, time, silent=True, **kwargs)
+                ls_power, ls_freqs, _ = getpowerLS(signal, time, **pixel_kwargs)
                 if x == 0 and y == 0:
                     powermap = np.zeros((nx, ny, len(ls_freqs)))
                 powermap[x, y, :] = ls_power
@@ -911,9 +933,9 @@ def get_dominant_averaged(cube, time, **kwargs):
             for y in range(ny):
                 signal = cube[:, x, y]
                 if params['GWS']:
-                    _, wavelet_periods, _, _, wavelet_power, _, _ = getpowerWavelet(signal, time, silent=True, **kwargs)
+                    _, wavelet_periods, _, _, wavelet_power, _, _ = getpowerWavelet(signal, time, **pixel_kwargs)
                 elif params['RGWS']:
-                    _, wavelet_periods, _, _, _, _, wavelet_power = getpowerWavelet(signal, time, silent=True, **kwargs)
+                    _, wavelet_periods, _, _, _, _, wavelet_power = getpowerWavelet(signal, time, **pixel_kwargs)
                 if x == 0 and y == 0:
                     powermap = np.zeros((nx, ny, len(wavelet_periods)))
                 wavelet_freq = 1. / wavelet_periods
@@ -930,7 +952,7 @@ def get_dominant_averaged(cube, time, **kwargs):
         for x in tqdm(range(nx), desc="Processing x", leave=True):
             for y in range(ny):
                 signal = cube[:, x, y]
-                welch_power, welch_freqs, _ = welch_psd(signal, time, silent=True, **kwargs)
+                welch_power, welch_freqs, _ = welch_psd(signal, time, **pixel_kwargs)
                 if x == 0 and y == 0:
                     powermap = np.zeros((nx, ny, len(welch_freqs)))
                 powermap[x, y, :] = welch_power

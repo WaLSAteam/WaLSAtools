@@ -32,7 +32,7 @@ If you experience a problem not listed here, we recommend:
     ```
 
 - **Python version mismatch**:  
-  Ensure you are using **Python 3.8 or later** (preferably 3.12.8 as recommended). Some dependencies require newer Python versions.
+  Use `python --version` to check that you are running Python 3.11 or later. If `python setup.py install` reports missing `setuptools`, install from the `codes/python` directory using `python -m pip install .`.
 
 - **Virtual environment not used**:  
   To avoid conflicts (especially with libraries like **NumPy 2.0+**), we strongly recommend creating a clean [virtual environment](https://walsa.tools/python/beginner-friendly-guide/#step-2-create-a-virtual-environment).

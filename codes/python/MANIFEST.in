@@ -1,2 +1,4 @@
 include WaLSAtools/assets/*
 include requirements.txt
+include LICENSE NOTICE
+recursive-include tests *.py

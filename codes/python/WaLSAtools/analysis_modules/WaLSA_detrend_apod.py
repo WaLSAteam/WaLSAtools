@@ -86,6 +86,8 @@ def getWavelet(signal, time, **kwargs):
 
     # Standardize the signal before the wavelet transform
     std_signal = signal.std()
+    if std_signal == 0:
+        raise ValueError("Wavelet power requires a signal with non-zero variance.")
     norm_signal = signal / std_signal
 
     # Determine the initial scale s0 if not provided
@@ -121,6 +123,8 @@ def linear(x, a, b):
 def custom_tukey(nt, apod=0.1):
     apodrim = int(apod * nt)
     apodt = np.ones(nt)  # Initialize with ones
+    if apodrim == 0:
+        return apodt
     
     # Apply sine-squared taper to the first 'apodrim' points
     taper = (np.sin(np.pi / 2. * np.arange(apodrim) / apodrim)) ** 2
@@ -177,6 +181,8 @@ def WaLSA_detrend_apod(
         deg = int(polyfit)
         coeffs = np.polyfit(t, apocube, deg)
         trend = np.polyval(coeffs, t)
+    elif meantemporal or meandetrend:
+        trend = 0.0
     else:
         # Linear detrend (slope + intercept)
         slope, intercept = np.polyfit(t, apocube, 1)
@@ -214,7 +220,10 @@ def WaLSA_detrend_apod(
 # Wavelet-based reconstruction function (optional)
 def WaLSA_wave_recon(ts, delt, dj=32, lo_cutoff=None, hi_cutoff=None, upper=False):
     """
-    Reconstructs the wavelet-filtered time series based on given frequency cutoffs.
+    Reconstructs a normalised wavelet-filtered time series using period cutoffs.
+
+    Use scale spacing dj or its historical reciprocal (for example 32).
+    The normalised transform does not recover physical input amplitudes.
     """
 
     # Define duration based on the time series length
@@ -231,15 +240,18 @@ def WaLSA_wave_recon(ts, delt, dj=32, lo_cutoff=None, hi_cutoff=None, upper=Fals
     num_points = len(ts)
     time_array = np.linspace(0, (num_points - 1) * delt, num_points)
 
-    _, period, coi, scales, wave= getWavelet(signal=ts, time=time_array, method='wavelet', siglevel=0.99, apod=0.1, mother=mother)
+    scale_step = 1.0 / dj if dj > 1 else dj
+    _, period, coi, scales, wave = getWavelet(
+        signal=ts, time=time_array, method='wavelet', siglevel=0.99,
+        apod=0.1, mother=mother, dj=scale_step)
 
-    # Ensure good_per_idx and bad_per_idx are properly assigned
+    # searchsorted also handles cutoffs outside the available periods.
     if upper:
-        good_per_idx = np.where(period > hi_cutoff)[0][0]
+        good_per_idx = np.searchsorted(period, hi_cutoff, side='right')
         bad_per_idx = len(period)
     else:
-        good_per_idx = np.where(period > lo_cutoff)[0][0]
-        bad_per_idx = np.where(period > hi_cutoff)[0][0]
+        good_per_idx = np.searchsorted(period, lo_cutoff, side='right')
+        bad_per_idx = np.searchsorted(period, hi_cutoff, side='right')
 
     # set the power inside the CoI equal to zero 
 	# (i.e., exclude points inside the CoI -- subject to edge effect)
@@ -257,6 +269,6 @@ def WaLSA_wave_recon(ts, delt, dj=32, lo_cutoff=None, hi_cutoff=None, upper=Fals
         recon_sum += iampl[:, i] / np.sqrt(scales[i])
 
     # Apply normalization factor
-    recon_all = dj * np.sqrt(delt) * recon_sum / (0.766 * (np.pi ** -0.25))
+    recon_all = scale_step * np.sqrt(delt) * recon_sum / (0.776 * (np.pi ** -0.25))
 
     return recon_all

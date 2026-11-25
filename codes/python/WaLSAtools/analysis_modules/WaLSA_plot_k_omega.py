@@ -136,16 +136,23 @@ def WaLSA_plot_k_omega(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
 
-    # Load custom colormap
-    rgb_values = np.loadtxt('Color_Tables/idl_colormap_13.txt') / 255.0
-    idl_colormap_13 = ListedColormap(rgb_values)
+    # Keep the examples' IDL palette when it is available. An installed
+    # package can also plot from a directory without the example assets.
+    palette = cmap
+    if cmap == 'viridis':
+        try:
+            rgb_values = np.loadtxt('Color_Tables/idl_colormap_13.txt') / 255.0
+        except FileNotFoundError:
+            pass
+        else:
+            palette = ListedColormap(rgb_values)
 
     # Compute minimum and maximum values of the data
     vmin = np.nanmin(kopower) 
     vmax = np.nanmax(kopower) 
 
     img = ax.imshow(
-        WaLSA_histo_opt(newimage), extent=extent, origin='lower', aspect='auto', cmap=idl_colormap_13, norm=Normalize(vmin=vmin, vmax=vmax)
+        WaLSA_histo_opt(newimage), extent=extent, origin='lower', aspect='auto', cmap=palette, norm=Normalize(vmin=vmin, vmax=vmax)
     )
 
     # Configure axis labels and scales

@@ -20,7 +20,7 @@
 
 import numpy as np # type: ignore
 from scipy.signal import coherence, csd # type: ignore
-from .WaLSA_speclizer import WaLSA_speclizer # type: ignore
+from .WaLSA_speclizer import WaLSA_speclizer, _welch_settings # type: ignore
 from .WaLSA_wavelet import xwt, wct # type: ignore
 from .WaLSA_detrend_apod import WaLSA_detrend_apod # type: ignore
 from .WaLSA_wavelet_confidence import WaLSA_wavelet_confidence # type: ignore
@@ -73,12 +73,13 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
         **kwargs: Additional parameters for the analysis method.
     
     Returns:
-        cospectrum, frequencies, phase_angle, coherence, signif_cross, signif_coh, d1_power, d2_power
+        frequencies, cross-spectrum magnitude, phase angle (degrees),
+        power of data1, power of data2, coherence frequencies, coherence
     """
     # Define default values for the optional parameters
     defaults = {
         'data1': None,        # First data array
-        'data1': None,        # Second data array
+        'data2': None,        # Second data array
         'nperseg': 256,      # Number of points per segments to average
         'apod': 0.1,       # Apodization function
         'nodetrendapod': None,  # No detrending ot apodization applied
@@ -100,16 +101,17 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
     tdiff = np.diff(time)
     cadence = np.median(tdiff)
     
-    # Power spectrum for data1
-    power_data1, frequencies, _ = WaLSA_speclizer(signal=data1, time=time, method='welch', 
-                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', True), **kwargs)
+    if len(data1) != len(data2):
+        raise ValueError("Paired Welch signals must have the same length.")
+    settings = _welch_settings(len(data1), cadence, kwargs)
+    auto_kwargs = {**kwargs, 'nosignificance': True, 'silent': True}
+    power_data1, frequencies, _ = WaLSA_speclizer(
+        signal=data1, time=time, method='welch', **auto_kwargs)
+    power_data2, _, _ = WaLSA_speclizer(
+        signal=data2, time=time, method='welch', **auto_kwargs)
 
-    # Power spectrum for data2
-    power_data2, _, _ = WaLSA_speclizer(signal=data2, time=time, method='welch', 
-                                               amplitude=True, nosignificance=True, silent=kwargs.pop('silent', False), **kwargs)
-
-    # Calculate cross-spectrum
-    _, crosspower = csd(data1, data2, fs=1.0/cadence, window='hann', nperseg=params['nperseg'],)
+    # Calculate cross-spectrum with the same settings as both auto-spectra.
+    _, crosspower = csd(data1, data2, **settings)
 
     cospectrum = np.abs(crosspower)
     
@@ -117,7 +119,7 @@ def getcross_spectrum_Welch(signal, time, **kwargs):
     phase_angle = np.angle(crosspower, deg=True)
 
     # Calculate coherence
-    freq_coh, coh = coherence(data1, data2, 1.0/cadence, nperseg=params['nperseg'])
+    freq_coh, coh = coherence(data1, data2, **settings)
     
     return frequencies, cospectrum, phase_angle, power_data1, power_data2, freq_coh, coh
 
@@ -220,9 +222,13 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
     # Update defaults with any user-provided keyword arguments
     params = {**defaults, **kwargs}
 
+    def preprocess(values, **options):
+        if params.get('nodetrendapod', False):
+            return values
+        return WaLSA_detrend_apod(values, **options)
+
     data1 = params['data1']
     data2 = params['data2']
-    dummy = signal+2
 
     tdiff = np.diff(time)
     cadence = np.median(tdiff)
@@ -230,7 +236,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
     data1orig = data1.copy()
     data2orig = data2.copy()
 
-    data1 = WaLSA_detrend_apod(
+    data1 = preprocess(
         data1, 
         apod=params['apod'], 
         meandetrend=params['meandetrend'], 
@@ -243,7 +249,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
         silent=True
     )
 
-    data2 = WaLSA_detrend_apod(
+    data2 = preprocess(
         data2, 
         apod=params['apod'], 
         meandetrend=params['meandetrend'], 
@@ -291,7 +297,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
         print(f"\rProgress: {progress:.2f}%", end="")
 
         y_perm1 = np.random.permutation(data1orig)  # Permuting the original signal
-        apocube1 = WaLSA_detrend_apod(
+        apocube1 = preprocess(
             y_perm1, 
             apod=params['apod'], 
             meandetrend=params['meandetrend'], 
@@ -304,7 +310,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
             silent=True
         )
         y_perm2 = np.random.permutation(data2orig)  # Permuting the original signal
-        apocube2 = WaLSA_detrend_apod(
+        apocube2 = preprocess(
             y_perm2, 
             apod=params['apod'], 
             meandetrend=params['meandetrend'], 
@@ -351,7 +357,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
         print(f"\rProgress: {progress:.2f}%", end="")
         
         y_perm1 = np.random.permutation(data1orig)  # Permuting the original signal
-        apocube1 = WaLSA_detrend_apod(
+        apocube1 = preprocess(
             y_perm1, 
             apod=params['apod'], 
             meandetrend=params['meandetrend'], 
@@ -364,7 +370,7 @@ def getcross_spectrum_Wavelet(signal, time, **kwargs):
             silent=True
         )
         y_perm2 = np.random.permutation(data2orig)  # Permuting the original signal
-        apocube2 = WaLSA_detrend_apod(
+        apocube2 = preprocess(
             y_perm2, 
             apod=params['apod'], 
             meandetrend=params['meandetrend'], 

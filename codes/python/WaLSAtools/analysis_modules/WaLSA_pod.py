@@ -110,7 +110,7 @@ def spod(data, **kwargs):
 
     # Center the data by subtracting the mean
     time_average = data.mean(axis=0)
-    fluctuation_field = data * 0  # Initialize fluctuation field with zeros
+    fluctuation_field = np.zeros(data.shape, dtype=np.result_type(data.dtype, np.float64))
     for n in range(nsnapshots):
         fluctuation_field[n,:,:] = data[n,:,:] - time_average  # Subtract time-average from each snapshot
 
@@ -139,16 +139,17 @@ def spod(data, **kwargs):
 
     for n in range(2 * params['filter_size'] + 1):
         k = -params['filter_size'] + n  # Offset from the center of the kernel
-        gk[n] = math.exp(-esp * k**2.0 / (params['filter_size']**2.0))  # Gaussian filter formula
+        gk[n] = math.exp(-esp * (k / max(1, params['filter_size']))**2)  # Gaussian filter formula
         sumgk += gk[n]  # Sum of kernel values for normalization
 
-    # Filter the extended correlation matrix
+    # Filter the extended correlation matrix without feeding filtered values back in.
+    unfiltered = nmatrix.copy()
     for j in range(nsnapshots, 2 * nsnapshots):
         for i in range(nsnapshots, 2 * nsnapshots):
             aux = 0.0  # Initialize variable for the weighted sum
             for n in range(2 * params['filter_size'] + 1):
                 k = -params['filter_size'] + n  # Offset from the current index
-                aux += nmatrix[i + k, j + k] * gk[n]  # Apply Gaussian weighting
+                aux += unfiltered[i + k, j + k] * gk[n]  # Apply Gaussian weighting
             nmatrix[i, j] = aux / sumgk  # Normalize by the sum of the Gaussian kernel
     
     # Extract the SPOD correlation matrix from the central part of the filtered matrix
@@ -165,6 +166,8 @@ def spod(data, **kwargs):
     # Extract spatial SPOD modes
     SPOD_spatial_modes = np.zeros((params['num_modes'], ny, nx))
     for m in range(params['num_modes']):
+        if SS[m] == 0:
+            continue
         for t in range(nsnapshots):
             SPOD_spatial_modes[m, :, :] += fluctuation_field[t, :, :] * SPOD_temporal_coefficients[t, m] / (SS[m] * nsnapshots)
 
@@ -189,7 +192,7 @@ def WaLSA_pod(signal, time, **kwargs):
         welch_nperseg (int, optional): Number of samples per segment for Welch's method. Default is 150.
         welch_noverlap (int, optional): Number of overlapping samples for Welch's method. Default is 25.
         welch_nfft (int, optional): Number of points for the FFT. Default is 2^14.
-        welch_fs (int, optional): Sampling frequency for the data. Default is 2.
+        welch_fs (int, optional): Sampling frequency for the data. By default inferred from time.
         nperm (int, optional): Number of permutations for significance testing. Default is 1000.
         siglevel (float, optional): Significance level for the Welch spectrum. Default is 0.95.
         timestep_to_reconstruct (int, optional): Timestep of the datacube to reconstruct using the top modes. Default is 0.
@@ -217,7 +220,7 @@ def WaLSA_pod(signal, time, **kwargs):
         'welch_nperseg': 150,
         'welch_noverlap': 25,
         'welch_nfft': 2**14,
-        'welch_fs': 2,
+        'welch_fs': 1.0 / np.median(np.diff(time)),
         'nperm': 1000,
         'siglevel': 0.95,
         'timestep_to_reconstruct': 0,
@@ -235,7 +238,7 @@ def WaLSA_pod(signal, time, **kwargs):
     data = signal
 
     if params['num_modes'] is None:
-        params['num_modes'] = data.shape[0]
+        params['num_modes'] = min(data.shape[0], data.shape[1] * data.shape[2])
 
     if params['num_top_frequencies'] is None:
         params['num_top_frequencies'] = min(params['num_modes'], 10)
@@ -254,7 +257,7 @@ def WaLSA_pod(signal, time, **kwargs):
     # we need to reshape the matrix such that it is an N x T matrix where N is the column vectorized set of each spatial image and T is the temporal domain. 
     # We also need to ensure that the mean is subtracted from the data; this will ensure we are looking only at the variance of the data, and mode 1 will not be contaminated with the mean image.
     # Reshape the 3D data into 2D array where each row is a vector from the original 3D data
-    inp = np.reshape(data, (data.shape[0], data.shape[1] * data.shape[2])).astype(np.float32)
+    inp = np.reshape(data, (data.shape[0], data.shape[1] * data.shape[2])).astype(np.float64)
     inp = inp.T  # Transpose the matrix to have spatial vectors as columns
 
     # Center the data by subtracting the mean
@@ -287,7 +290,7 @@ def WaLSA_pod(signal, time, **kwargs):
     # Calculate cumulative eigenvalues
     cumulative_eigenvalues = []
     for m in range(params['num_cumulative_modes']): 
-        contm = 100 * eigenvalue[0:m] / np.sum(eigenvalue)
+        contm = 100 * eigenvalue[:m + 1] / np.sum(eigenvalue)
         cumulative_eigenvalues.append(np.sum(contm)) 
 
     if params['reconstruct_all']:
@@ -334,7 +337,7 @@ def WaLSA_pod(signal, time, **kwargs):
         resampled_peak /= (np.max(resampled_peak) + 1e-30) # a small epsilon added to avoid division by zero
         resampled_peaks[i, :] = resampled_peak
     # Calculate significance threshold
-    combined_welch_significance = np.percentile(resampled_peaks, 100-(params['siglevel']*100), axis=0)
+    combined_welch_significance = np.percentile(resampled_peaks, params['siglevel'] * 100, axis=0)
     #---------------------------------------------------------------------------------
 
     # Find peaks in the combined spectrum and sort them in descending order
@@ -356,13 +359,12 @@ def WaLSA_pod(signal, time, **kwargs):
     # allowing for a representation of the data described solely by these "pure" frequencies. 
     # This approach enables the reconstruction of the original data using the identified dominant frequencies,
     # resulting in frequency-filtered spatial POD modes.
-    clean_data = np.zeros((inp.shape[0],inp.shape[1],10))
-
     if params['top_frequencies'] is None:
         top_frequencies = sorted_frequencies[:params['num_top_frequencies']]
     else:    
         top_frequencies = params['top_frequencies']
-        params['num_top_frequencies'] = len(params['top_frequencies'])
+    params['num_top_frequencies'] = len(top_frequencies)
+    clean_data = np.zeros((inp.shape[0], inp.shape[1], len(top_frequencies)))
 
     for i in range(params['num_top_frequencies']):
         def model_fun(t, amplitude, phase):

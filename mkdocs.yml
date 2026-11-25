@@ -46,8 +46,6 @@ extra:
       name: Contact us
   disqus: ""
   manifest: manifest.webmanifest
-  username: "WaLSA Team"
-  password: "WaLSAtools@CaII8542"
 
 # Configuration
 theme:
@@ -159,6 +157,7 @@ nav:
     - Changelog: changelog.md
     - Release Notes:
         - 'v1.0.0': releases/v1.0.0.md
+        - 'v1.0.1': releases/v1.0.1.md
 
 # Plugins
 plugins:

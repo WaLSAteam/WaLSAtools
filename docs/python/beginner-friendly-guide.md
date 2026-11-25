@@ -101,7 +101,7 @@ This guide will walk you through the full setup process for running **WaLSAtools
             ```
 
     !!! walsa-info "Why Python 3.12.8?"
-        While other Python versions (above 3.8) may also work, Python 3.12.8 has been thoroughly tested with WaLSAtools and is our recommended version. You can install multiple Python versions if you wish and create a separate virtual environment for each.
+        Python 3.12.8 is the version used in this example. WaLSAtools requires Python 3.11 or later, and pip selects dependencies for your Python version. You can install multiple Python versions if you wish and create a separate virtual environment for each.
 
 ## Step 2: Create a Virtual Environment :material-cube-outline:
 

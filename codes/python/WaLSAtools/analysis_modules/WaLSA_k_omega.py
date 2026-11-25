@@ -209,32 +209,12 @@ def apod3dcube(cube, apod):
     else:
         apodxy = np.outer(apodx, apody)
 
-    # Spatial gradient removal and apodizing per image
-    # xf, yf = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
-    xf = np.ones((nx, ny), dtype=np.float32)
-    yf = np.copy(xf)
+    # The original fit used constant spatial predictors. Its least-squares
+    # model is the image mean. Keep that model without a rank-deficient fit.
     for it in range(nt):
         img = apocube[it, :, :]
-        # avg, _ = avgstd(img)
         avg = np.mean(img)
-
-        # Ensure xf, yf, and img are properly defined
-        assert xf.shape == yf.shape == img.shape, "xf, yf, and img must have matching shapes."
-
-        # Flatten the inputs for curve_fit
-        x_flat = xf.ravel()
-        y_flat = yf.ravel()
-        img_flat = img.ravel()
-
-        # Ensure lengths match
-        assert len(x_flat) == len(y_flat) == len(img_flat), "Flattened inputs must have the same length."
-
-        # Call curve_fit with initial parameters
-        fitp, _ = curve_fit(gradient, (x_flat, y_flat), img_flat, p0=[1000.0, 0.0, 0.0])
-
-        # Apply the fitted parameters
-        fit = gradient((xf, yf), *fitp)
-        apocube[it, :, :] = (img - fit) * apodxy + avg
+        apocube[it, :, :] = (img - avg) * apodxy + avg
 
     return apocube
 
@@ -243,22 +223,12 @@ def ko_dist(sx, sy, double=False):
     """
     Set up Pythagorean distance array from the origin.
     """
-    # Create distance grids for x and y
-    # (computing dx and dy using floating-point division)
-    dx = np.tile(np.arange(sx / 2 + 1) / (sx / 2), (int(sy / 2 + 1), 1)).T
-    dy = np.flip(np.tile(np.arange(sy / 2 + 1) / (sy / 2), (int(sx / 2 + 1), 1)), axis=0)
-    # Compute dxy
-    dxy = np.sqrt(dx**2 + dy**2) * (min(sx, sy) / 2 + 1)
-    # Initialize afstanden
-    afstanden = np.zeros((sx, sy), dtype=np.float64)
-    # Assign dxy to the first quadrant (upper-left)
-    afstanden[:sx // 2 + 1, :sy // 2 + 1] = dxy
-    # Second quadrant (upper-right) - 90° clockwise
-    afstanden[sx // 2:, :sy // 2 + 1] = np.flip(np.roll(dxy[:-1, :], shift=-1, axis=1), axis=1)
-    # Third quadrant (lower-left) - 270° clockwise
-    afstanden[:sx // 2 + 1, sy // 2:] = np.flip(np.roll(dxy[:, :-1], shift=-1, axis=0), axis=0)
-    # Fourth quadrant (lower-right) - 180° rotation
-    afstanden[sx // 2:, sy // 2:] = np.flip(dxy[:-1, :-1], axis=(0, 1))     
+    # The spatial transform is unshifted. DC is at index (0, 0).
+    kx = np.rint(np.fft.fftfreq(sx) * sx)
+    ky = np.rint(np.fft.fftfreq(sy) * sy)
+    # Preserve the original Nyquist-normalised ring spacing.
+    afstanden = np.hypot(kx[:, None] / (sx / 2), ky[None, :] / (sy / 2))
+    afstanden *= min(sx, sy) // 2 + 1
 
     # Convert to integers if 'double' is False
     if not double:
@@ -296,7 +266,7 @@ def averpower(cube):
         where_indices = np.where(afstanden == i)
         for j in range(nt // 2 + 1):
             w1 = fftcube[j, :, :][where_indices]
-            avpow[i, j] = np.sum(np.abs(w1) ** 2) / len(where_indices)
+            avpow[i, j] = np.mean(np.abs(w1) ** 2) if w1.size else 0.0
 
     return avpow
 
@@ -482,10 +452,10 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
     # Scales
     xsize_kopower = kopower.shape[0]
     dxsize_kopower = spatial_nyquist / float(xsize_kopower - 1)
-    kopower_xscale = np.arange(xsize_kopower) * dxsize_kopower  # in pixel⁻¹
+    kopower_xscale = np.arange(xsize_kopower) * dxsize_kopower  # radians per spatial unit
 
     ysize_kopower = kopower.shape[1]
-    dysize_kopower = temporal_nyquist / float(ysize_kopower - 1)
+    dysize_kopower = 1.0 / (nt * cadence)
     kopower_yscale = (np.arange(ysize_kopower) * dysize_kopower) # in Hz
 
     # Generate Gaussian Kernel
@@ -570,96 +540,55 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
         print("Making a 3D Fourier transform of the input datacube ..........")
         threedft = np.fft.fftshift(np.fft.fftn(signal))
 
-        # Calculate the frequency axes for the 3D FFT
-        temp_x = np.arange((nx - 1) // 2) + 1
-        is_N_even = (nx % 2 == 0)
-        if is_N_even:
-            spatial_frequencies_orig = (
-                np.concatenate([[0.0], temp_x, [nx / 2], -nx / 2 + temp_x]) / (nx * pixelsize)) * (2.0 * np.pi)
-        else:
-            spatial_frequencies_orig = (
-                np.concatenate([[0.0], temp_x, [-(nx / 2 + 1)] + temp_x]) / (nx * pixelsize)) * (2.0 * np.pi)
-
-        temp_t = np.arange((nt - 1) // 2) + 1  # Use integer division for clarity
-        is_N_even = (nt % 2 == 0)
-        if is_N_even:
-            temporal_frequencies_orig = (
-                np.concatenate([[0.0], temp_t, [nt / 2], -nt / 2 + temp_t])) / (nt * cadence)
-        else:
-            temporal_frequencies_orig = (
-                np.concatenate([[0.0], temp_t, [-(nt / 2 + 1)] + temp_t])) / (nt * cadence)
-
-        # Compensate frequency axes for the use of FFT shift
-        indices = np.where(spatial_frequencies_orig >= 0)[0]
-        spatial_positive_frequencies = len(indices)
-        if len(spatial_frequencies_orig) % 2 == 0:
-            spatial_frequencies = np.roll(spatial_frequencies_orig, spatial_positive_frequencies - 2)
-        else:
-            spatial_frequencies = np.roll(spatial_frequencies_orig, spatial_positive_frequencies - 1)
-
-        tindices = np.where(temporal_frequencies_orig >= 0)[0]
-        temporal_positive_frequencies = len(tindices)
-        if len(temporal_frequencies_orig) % 2 == 0:
-            temporal_frequencies = np.roll(temporal_frequencies_orig, temporal_positive_frequencies - 2)
-        else:
-            temporal_frequencies = np.roll(temporal_frequencies_orig, temporal_positive_frequencies - 1)
-
-        # Ensure the threedft aligns with the new frequency axes
-        if len(temporal_frequencies_orig) % 2 == 0:
-            for x in range(nx):
-                for y in range(ny):
-                    threedft[:, x, y] = np.roll(threedft[:, x, y], -1)
-
-        if len(spatial_frequencies_orig) % 2 == 0:
-            for z in range(nt):
-                threedft[z, :, :] = np.roll(threedft[z, :, :], shift=(-1, -1), axis=(0, 1))
-
-        # Convert frequencies and wavenumbers of interest into FFT datacube pixels
-        pixel_k1_positive = np.argmin(np.abs(spatial_frequencies_orig - k1))
-        pixel_k2_positive = np.argmin(np.abs(spatial_frequencies_orig - k2))
-        pixel_f1_positive = np.argmin(np.abs(temporal_frequencies - f1))
-        pixel_f2_positive = np.argmin(np.abs(temporal_frequencies - f2))
-        pixel_f1_negative = np.argmin(np.abs(temporal_frequencies + f1))
-        pixel_f2_negative = np.argmin(np.abs(temporal_frequencies + f2))
-
-        torus_depth = int((pixel_k2_positive - pixel_k1_positive) / 2) * 2
-        torus_center = int(((pixel_k2_positive - pixel_k1_positive) / 2) + pixel_k1_positive)
-
-        if params['spatial_torus'] and not params['no_spatial_filt']:
-            # Create a filter ring preserving equal wavenumbers for both kx and ky
-            # This forms a torus to preserve an integrated Gaussian shape across the width of the annulus
-            spatial_torus = np.zeros((torus_depth, nx, ny)) 
-            for i in range(torus_depth // 2 + 1):
-                spatial_ring = np.logical_xor(
-                    (walsa_radial_distances((nx, ny)) <= (torus_center - i)),
-                    (walsa_radial_distances((nx, ny)) <= (torus_center + i + 1))
-                )
-                spatial_ring = spatial_ring.astype(int)  # Convert True -> 1 and False -> 0
-                spatial_ring[spatial_ring > 0] = 1.
-                spatial_ring[spatial_ring != 1] = 0.
-                spatial_torus[i, :, :] = spatial_ring
-                spatial_torus[torus_depth - i - 1, :, :] = spatial_ring
-
-            # Integrate through the torus to find the spatial filter
-            spatial_ring_filter = np.nansum(spatial_torus, axis=0) / float(torus_depth)
-            
-            spatial_ring_filter = spatial_ring_filter / np.nanmax(spatial_ring_filter)  # Ensure the peaks are at 1.0
-
-        if not params['spatial_torus'] and not params['no_spatial_filt']:
-            spatial_ring_filter = (
-                (walsa_radial_distances((nx, ny)) <= (torus_center - int(torus_depth / 2))).astype(int) -
-                (walsa_radial_distances((nx, ny)) <= (torus_center + int(torus_depth / 2) + 1)).astype(int)
-            )
-            spatial_ring_filter = spatial_ring_filter / np.nanmax(spatial_ring_filter)  # Ensure the peaks are at 1.0
-            spatial_ring_filter[spatial_ring_filter != 1] = 0
+        # Read both axes directly from the shifted DFT grid.
+        dk = 2 * np.pi / (nx * pixelsize)
+        df = 1.0 / (nt * cadence)
+        spatial_frequencies = np.fft.fftshift(np.fft.fftfreq(nx, pixelsize)) * (2 * np.pi)
+        temporal_frequencies = np.fft.fftshift(np.fft.fftfreq(nt, cadence))
+        spatial_indices = np.rint(spatial_frequencies / dk)
+        spatial_bins = np.hypot(spatial_indices[:, None], spatial_indices[None, :])
+        absolute_time_bin = np.rint(np.abs(temporal_frequencies) / df).astype(int)
+        if k1 > k2 or f1 > f2:
+            raise ValueError("Passband bounds must be in increasing order.")
 
         if params['no_spatial_filt']:
             spatial_ring_filter = np.ones((nx, ny))
+        else:
+            low, high = k1 / dk, k2 / dk
+            tolerance = 8 * np.finfo(float).eps * max(1.0, high)
+            annulus = (spatial_bins >= low - tolerance) & (spatial_bins <= high + tolerance)
+            spatial_ring_filter = annulus.astype(float)
+            if params['spatial_torus']:
+                # Preserve the legacy nested-ring taper in FFT-bin units.
+                # The shifted FFT origin replaces the image's midpoint.
+                positive_k = np.arange(nx // 2 + 1) * dk
+                first_k = np.argmin(np.abs(positive_k - k1))
+                last_k = np.argmin(np.abs(positive_k - k2))
+                half_depth = (last_k - first_k) // 2
+                centre = (first_k + last_k) // 2
+                if half_depth:
+                    spatial_ring_filter.fill(0)
+                    for width in range(half_depth + 1):
+                        # The outer ring overwrote the preceding central
+                        # slice pair in the original torus.
+                        if width != half_depth - 1:
+                            spatial_ring_filter += (
+                                (spatial_bins > centre - width)
+                                & (spatial_bins <= centre + width + 1)
+                            )
+                    peak = spatial_ring_filter.max()
+                    if peak:
+                        spatial_ring_filter /= peak
 
-        if not params['no_temporal_filt'] and params['temporal_torus']:
-        # CREATE A GAUSSIAN TEMPORAL FILTER TO PREVENT ALIASING
-            temporal_filter = np.zeros(nt, dtype=float)
-            filter_width = pixel_f2_positive - pixel_f1_positive
+        # Keep the original nearest-bin selection and Gaussian kernel width.
+        positive_f = np.arange(nt // 2 + 1) * df
+        first_bin = np.argmin(np.abs(positive_f - f1))
+        last_bin = np.argmin(np.abs(positive_f - f2))
+        temporal_pass = (absolute_time_bin >= first_bin) & (absolute_time_bin <= last_bin)
+        if params['no_temporal_filt']:
+            temporal_filter = np.ones(nt, dtype=float)
+        elif params['temporal_torus'] and first_bin < last_bin:
+            filter_width = last_bin - first_bin
 
             # Determine sigma based on filter width
             if filter_width < 25:
@@ -693,22 +622,21 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
             if filter_width >= 130:
                 sigma = 17
 
-            # Generate the Gaussian kernel
             temporal_gaussian = gaussian_function(sigma=sigma, width=filter_width)
-
-            # Apply the Gaussian to the temporal filter
-            temporal_filter[pixel_f1_positive:pixel_f2_positive] = temporal_gaussian
-            temporal_filter[pixel_f2_negative:pixel_f1_negative] = temporal_gaussian
-            # Normalize the filter to ensure the peaks are at 1.0
-            temporal_filter /= np.nanmax(temporal_filter)
-
-        if not params['no_temporal_filt'] and not params['temporal_torus']:
+            temporal_gaussian /= temporal_gaussian.max()
+            # The original signed slices were half-open. Pair their weights
+            # to preserve their contribution to the real inverse transform.
+            gains = np.r_[temporal_gaussian, 0.0]
             temporal_filter = np.zeros(nt, dtype=float)
-            temporal_filter[pixel_f1_positive:pixel_f2_positive + 1] = 1.0
-            temporal_filter[pixel_f2_negative:pixel_f1_negative + 1] = 1.0
-
-        if params['no_temporal_filt']:
-            temporal_filter = np.ones(nt, dtype=float)
+            indices = absolute_time_bin[temporal_pass] - first_bin
+            temporal_filter[temporal_pass] = (gains[indices] + gains[filter_width - indices]) / 2
+            # DC and the even-length Nyquist bin are each their own partner.
+            if first_bin == 0:
+                temporal_filter[absolute_time_bin == 0] = temporal_gaussian[0]
+            if nt % 2 == 0 and last_bin == nt // 2:
+                temporal_filter[absolute_time_bin == last_bin] = temporal_gaussian[0]
+        else:
+            temporal_filter = temporal_pass.astype(float)
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # Create useful variables for plotting (if needed), demonstrating the filtering process
@@ -762,11 +690,10 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
             torus_map = None
             spatial_fft_filtered_map = None
             temporal_fft = None
-            temporal_filter, temporal_frequencies, spatial_frequencies = None, None, None
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        # Apply the Gaussian filters to the data to prevent aliasing
+        # Apply the frequency-domain masks
         for i in range(nt): 
             threedft[i, :, :] *= spatial_ring_filter
 
@@ -774,20 +701,11 @@ def WaLSA_k_omega(signal, time=None, **kwargs):
             for y in range(ny):  
                 threedft[:, x, y] *= temporal_filter
 
-        # ALSO NEED TO ENSURE THE threedft ALIGNS WITH THE OLD FREQUENCY AXES USED BY THE /center CALL
-        if len(temporal_frequencies_orig) % 2 == 0:
-            for x in range(nx):  
-                for y in range(ny): 
-                    threedft[:, x, y] = np.roll(threedft[:, x, y], shift=1, axis=0)
-
-        if len(spatial_frequencies_orig) % 2 == 0:
-            for t in range(nt):  
-                threedft[t, :, :] = np.roll(threedft[t, :, :], shift=(1, 1), axis=(0, 1))
-                threedft[z, :, :] = np.roll(np.roll(threedft[z, :, :], shift=1, axis=0), shift=1, axis=1)
-
         # Inverse FFT to get the filtered cube
         # filtered_cube = np.real(np.fft.ifftn(threedft, norm='ortho'))
         filtered_cube = np.real(np.fft.ifftn(np.fft.ifftshift(threedft)))
+        if not params['processing_maps']:
+            temporal_filter, temporal_frequencies, spatial_frequencies = None, None, None
 
     else:
         filtered_cube = None

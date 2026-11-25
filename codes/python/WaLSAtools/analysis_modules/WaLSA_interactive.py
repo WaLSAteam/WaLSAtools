@@ -52,7 +52,7 @@ def print_logo_and_credits():
     credits_terminal = """
         © WaLSA Team (www.WaLSA.team)
         -----------------------------------------------------------------------
-        WaLSAtools v1.0.0 - Wave analysis tools
+        WaLSAtools v1.0.1 - Wave analysis tools
         Documentation: www.WaLSA.tools
         GitHub repository: www.github.com/WaLSAteam/WaLSAtools
         -----------------------------------------------------------------------
@@ -70,7 +70,7 @@ def print_logo_and_credits():
         <div style="margin-left: 30px; margin-top: 20px; font-size: 1.1em; line-height: 0.8;">
             <p>© WaLSA Team (<a href="https://www.WaLSA.team" target="_blank">www.WaLSA.team</a>)</p>
             <hr style="width: 70%; margin: 0; border: 0.98px solid #888; margin-bottom: 10px;">
-            <p><strong>WaLSAtools</strong> v1.0.0 - Wave analysis tools</p>
+            <p><strong>WaLSAtools</strong> v1.0.1 - Wave analysis tools</p>
             <p>Documentation: <a href="https://www.WaLSA.tools" target="_blank">www.WaLSA.tools</a></p>
             <p>GitHub repository: <a href="https://www.github.com/WaLSAteam/WaLSAtools" target="_blank">www.github.com/WaLSAteam/WaLSAtools</a></p>
             <hr style="width: 70%; margin: 0; border: 0.98px solid #888; margin-bottom: 10px;">

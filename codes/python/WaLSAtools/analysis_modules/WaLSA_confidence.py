@@ -55,6 +55,6 @@ def WaLSA_confidence(ps_perm, siglevel=0.05, nf=None):
         nsig = int(round(siglevel * ntmp))  # Number of permutations to cut off for the significance level
 
         # Set the confidence level for this frequency
-        signif[iv] = tmp[-nsig]  # Select the (ntmp - nsig)-th element (equivalent to IDL's ROUND and indexing)
+        signif[iv] = tmp[-max(1, nsig)]  # Index zero would select the opposite tail.
 
     return signif

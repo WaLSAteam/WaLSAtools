@@ -16,8 +16,8 @@ For a complete beginner-friendly setup from scratch, see the [Beginner's Guide](
 
 Before installing WaLSAtools, ensure you have the following:
 
-- **Python 3.8 or later** installed.  
-  👉 You can download the latest version of Python from [https://www.python.org/downloads/](https://www.python.org/downloads/) if needed.
+- **Python 3.11 or later** installed. pip selects dependencies for your Python version.
+  👉 You can download Python from [python.org](https://www.python.org/downloads/) if needed.
 
 - **pip** (Python package installer) available.  
   👉 You can check by running:
@@ -26,8 +26,8 @@ Before installing WaLSAtools, ensure you have the following:
     ```
     If you do not have pip, follow the [official installation guide](https://pip.pypa.io/en/stable/installation/).
 
-    !!! walsa-info "Recommended Python version"
-        We have tested WaLSAtools most extensively with **Python 3.12.8**.
+    !!! walsa-info "Version used in the examples"
+        The beginner’s guide uses **Python 3.12.8**.
 
 - **Virtual Environment** (Recommended):
     To avoid conflicts with existing packages (especially due to major changes in packages like NumPy 2.0+),
@@ -42,6 +42,8 @@ To install the latest stable release from PyPI (Python Package Index), simply ru
 pip install WaLSAtools
 ```
 This will automatically download and install WaLSAtools and its required dependencies into your environment.
+
+On Python 3.15 and later, wavelet analysis uses the SciPy FFT backend if pyFFTW is absent. Wavelet coherence values can differ between the two backends. For direct calls to `cwt` with a non-power-of-two input length, keep the default `pad=True` when using SciPy.
 
 !!! walsa-tip "Tip: Upgrade pip first"
     Before installing any package, it is good practice to upgrade pip:
@@ -65,12 +67,9 @@ If you prefer installing the development version directly from GitHub:
 
 3. Install using pip:
     ```bash
-    pip install .
+    python -m pip install .
     ```
-    Alternatively, you can use the traditional setup:
-    ```bash
-    python setup.py install
-    ```
+    pip installs the build tools declared in `pyproject.toml` in a temporary environment.
 
 This method ensures you have access to the latest updates and examples.
 

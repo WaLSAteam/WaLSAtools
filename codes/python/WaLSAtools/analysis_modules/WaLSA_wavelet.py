@@ -801,9 +801,9 @@ def significance(signal, dt, scales, sigma_test=0, alpha=None,
     # Theoretical discrete Fourier power spectrum of the noise signal
     # following Gilman et al. (1963) and Torrence and Compo (1998),
     # equation 16.
-    def pk(k, a, N):
-        return (1 - a ** 2) / (1 + a ** 2 - 2 * a * np.cos(2 * np.pi * k / N))
-    fft_theor = pk(freq, alpha, n0)
+    def pk(normalised_freq, a):
+        return (1 - a ** 2) / (1 + a ** 2 - 2 * a * np.cos(2 * np.pi * normalised_freq))
+    fft_theor = pk(freq, alpha)
     fft_theor = variance * fft_theor     # Including time-series variance
     signif = fft_theor
 
@@ -819,10 +819,8 @@ def significance(signal, dt, scales, sigma_test=0, alpha=None,
         chisquare = chi2.ppf(significance_level, dof) / dof
         signif = fft_theor * chisquare
     elif sigma_test == 1:  # Time-averaged significance
-        if len(dof) == 1:
-            dof = np.zeros(1, J+1) + dof
-        sel = find(dof < 1)
-        dof[sel] = 1
+        dof = np.broadcast_to(np.asarray(dof, dtype=float), (J + 1,)).copy()
+        dof[dof < 1] = 1
         # As in Torrence and Compo (1998), equation 23:
         dof = dofmin * (1 + (dof * dt / gamma_fac / scales) ** 2) ** 0.5
         sel = find(dof < dofmin)

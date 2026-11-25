@@ -79,3 +79,21 @@ class WaLSAtools:
 
 # Instantiate the object so that it works like a function and runs interactively
 WaLSAtools = WaLSAtools()
+
+def main(argv=None):
+    """Open the installed command-line guide, or print command usage."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog='WaLSAtools', description='Open the WaLSAtools interactive guide.'
+    )
+    parser.add_argument('--interactive', action='store_true',
+                        help='open the guide (also the default)')
+    parser.parse_args(argv)
+    try:
+        interactive()
+    except EOFError:
+        return 0
+    except KeyboardInterrupt:
+        return 130
+    return 0

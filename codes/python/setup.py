@@ -33,7 +33,7 @@ except FileNotFoundError:
 
 setup(
     name='WaLSAtools',
-    version='1.0.0.post5',
+    version='1.0.1',
     author='WaLSA Team - Shahin Jafarzadeh',
     author_email='Shahin.Jafarzadeh@WaLSA.team',
     description='Wave analysis tools: A package for analyzing wave and oscillatory signals',
@@ -41,7 +41,8 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/WaLSAteam/WaLSAtools',
     packages=find_packages(),
-    include_package_data=True, 
+    include_package_data=True,
+    license_files=['LICENSE', 'NOTICE'],
     package_data={
         "WaLSAtools": ["assets/*.png", "assets/*.jpg"],
     },
@@ -57,5 +58,5 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',
     ],
-    python_requires='>=3.6',  
+    python_requires='>=3.11',
 ) 
