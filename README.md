@@ -9,7 +9,7 @@
 # WaLSAtools &ndash; Wave Analysis Tools
 
 <p align="left">
-    <a href="#"><img src="https://img.shields.io/badge/WaLSAtools-v1.0.0-0066cc"></a> 
+    <a href="#"><img src="https://img.shields.io/badge/WaLSAtools-v1.0.1-0066cc"></a> 
     <a href="https://walsa.team" target="_blank"><img src="https://img.shields.io/badge/powered%20by-WaLSA%20Team-000d1a"></a>
     <a href="https://walsa.tools/license"><img src="https://img.shields.io/badge/license-Apache%202.0-green"></a>
     <a href="https://doi.org/10.5281/zenodo.14978610"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.14978610.svg" alt="DOI"></a>
