@@ -186,7 +186,7 @@ The ["Under the Hood"](routines.md) section provides details on the individual r
 <div style="margin-left: 30px; margin-top: 20px; font-size: 0.9em;">
     <p>© WaLSA Team (<a href="https://www.WaLSA.team" target="_blank" style="color: #4169E1; text-decoration: none;">www.WaLSA.team</a>)</p>
     <hr style="width: 70%; margin: 0; border: 0.98px solid #888; margin-bottom: 10px;">
-    <p><strong>WaLSAtools</strong> v1.0.0 - Wave analysis tools</p>
+    <p><strong>WaLSAtools</strong> v1.0.1 - Wave analysis tools</p>
     <p>Documentation: <a href="https://www.WaLSA.tools" target="_blank" style="color: #4169E1; text-decoration: none;">www.WaLSA.tools</a></p>
     <p>GitHub repository: <a href="https://www.github.com/WaLSAteam/WaLSAtools" target="_blank" style="color: #4169E1; text-decoration: none;">www.github.com/WaLSAteam/WaLSAtools</a></p>
     <hr style="width: 70%; margin: 0; border: 0.98px solid #888; margin-bottom: 10px;">
