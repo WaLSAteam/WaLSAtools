@@ -1,0 +1,44 @@
+{#-
+  This file was automatically generated - do not edit
+-#}
+<script>
+  var selectedplan = "python";
+  var tprolan = __md_get("__palette") || { index: e.findIndex((r) => matchMedia(r.getAttribute("data-md-color-media")).matches) };
+  if (tprolan.index == 0) {
+    var selectedplan = "python";
+  } else if (tprolan.index == 1) {
+    var selectedplan = "idl";
+  }
+</script>
+<!-- Determine class according to state -->
+{% if not class %}
+  {% set class = "md-tabs__link" %}
+  {% if nav_item.active %}
+    {% set class = class ~ " md-tabs__link--active" %}
+  {% endif %}
+{% endif %}
+<!-- Main navigation item with nested items -->
+{% if nav_item.children %}
+  {% set title = title | d(nav_item.title) %}
+  {% set nav_item = nav_item.children | first %}
+  <!-- Recurse, if the first item has further nested items -->
+  {% if nav_item.children %}
+    {% include "partials/tabs-item.html" %}
+    <!-- Render item -->
+  {% else %}
+    <span id="container0"></span>
+    <script>
+      var urlstrg = "{{ nav_item.url }}";
+      if (!urlstrg.match(selectedplan)) {
+        $("#container0").append("<li class='md-tabs__item'><a href='{{ nav_item.url | url }}' class='{{ class }}'>{{ title }}</a></li>");
+      };
+    </script>
+  {% endif %}
+<!-- Main navigation item -->
+{% else %}
+  <li class="md-tabs__item">
+    <a href="{{ nav_item.url | url }}" class="{{ class }}">
+      {{ nav_item.title }}
+    </a>
+  </li>
+{% endif %}
